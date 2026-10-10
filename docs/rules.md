@@ -17,7 +17,7 @@ is configurable** — and **a rule is a boolean**: a named yes/no switch in plai
 - **INVARIANT** — cannot be switched off without breaking integrity, security or the contract, or is a bound
   of the platform. Referred to as I1–I12.
 - **Batch** — the spec that moves the rule onto the registry. Until that spec is merged the rule is still a
-  fixed check with the default's behaviour. `012` is written; `013`, `014`, `017`, `021` are roadmap rows.
+  fixed check with the default's behaviour. `012` is merged; `013` is written; `014`, `017`, `021` are roadmap rows.
   **feature** means: the rule is a business choice, not an invariant, but its other value is behaviour that
   does not exist yet; it becomes a switch with the spec that builds it.
 - Sources are written `005/R15` (spec 005, rule R15), `arch §5` (architecture), `ADR-0012`.
@@ -65,17 +65,20 @@ behaviour) and what yes and no do. `<m>` stands for each of `uom`, `article`, `p
 | `purchase.partnerRequired` | Partner (supplier) required on a purchase order | `true` | Yes: an order saved without a supplier is refused. No: it may be saved, confirmed and received against without one. |
 | `sales.partnerRequired` | Partner (customer) required on a sales order | `true` | The same for the customer of a sales order. |
 
-### Batch 013 — master data (roadmap)
+### Batch 013 — master data (spec 013, written)
 
 | Key | Name | Default | Yes / no |
 |---|---|---|---|
-| `uom.codeChangeable`, `article.codeChangeable`, `partner.codeChangeable`, `warehouse.codeChangeable` | The code of a (unit / article / partner / warehouse) may be changed | `true` | No: a replace that changes the code is refused. |
-| `uom.nameUnique`, `article.nameUnique`, `partner.nameUnique`, `warehouse.nameUnique` | Names of (units / articles / partners / warehouses) must be unique | `false` | Yes: a second record with the same name is refused. |
+| `uom.codeChangeable`, `article.codeChangeable`, `partner.codeChangeable`, `warehouse.codeChangeable` | The code of a (unit / article / partner / warehouse) may be changed | `true` | No: a replace that changes the code is refused (`CODE_CHANGE_NOT_ALLOWED`); a change of letter case counts. |
+| `uom.nameUnique`, `article.nameUnique`, `partner.nameUnique`, `warehouse.nameUnique` | Names of (units / articles / partners / warehouses) must be unique | `false` | Yes: a second record with the same name is refused (`NAME_TAKEN`); compared like codes, per resource. |
 | `article.descriptionRequired` | Description required on an article | `false` | — |
 | `partner.roleRequired` | A partner must be a customer or a supplier | `true` | No: a partner with neither role may be saved. |
 | `partner.taxIdRequired` | Tax id required on a partner | `false` | — |
-| `partner.taxIdUnique` | Tax ids of partners must be unique | `false` | — |
+| `partner.taxIdUnique` | Tax ids of partners must be unique | `false` | Yes: a second partner with the same tax id is refused (`TAX_ID_TAKEN`); partners without one never collide. |
 | `partner.<f>Required`, `warehouse.<f>Required` for `<f>` = `addressLine1`, `addressLine2`, `postalCode`, `city`, `region`, `countryCode` (12 keys, e.g. `partner.cityRequired`) | (Field) required on a partner / on a warehouse | `false` | — |
+
+24 rules. Each judges create and replace of its own resource and nothing else; a replace is judged whole
+(spec 013, R2–R3).
 
 ### Batch 014 — documents (roadmap; may be split in two when written)
 
