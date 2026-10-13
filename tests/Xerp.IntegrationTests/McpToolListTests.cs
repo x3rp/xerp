@@ -148,10 +148,37 @@ public class McpToolListTests(XerpFixture app)
         new("rule_change_list", ["key", "limit", "offset"], [], "read"),
     ];
 
-    // The complete list (spec 004, section 5.3; specs 005 to 012, section 5): a new tool must be added here by its spec.
+    // Spec P01, section 5: three masters as a unit of measure, the sales data of an article and its barcodes.
+    private static readonly Expected[] SpecP01Tools =
+    [
+        .. new (string Prefix, string? Extra)[] { ("article_category", null), ("tax_rate", "rate"), ("payment_method", "kind") }
+            .SelectMany(m =>
+            {
+                string[] extra = m.Extra is null ? [] : [m.Extra];
+                string[] filter = m.Prefix == "payment_method" ? ["kind"] : [];
+                return new Expected[]
+                {
+                    new($"{m.Prefix}_list", ["search", "isActive", .. filter, "limit", "offset"], [], "read"),
+                    new($"{m.Prefix}_get", ["id", "code"], [], "read"),
+                    new($"{m.Prefix}_create", ["code", "name", .. extra, "isActive"], ["code", "name", .. extra], "create"),
+                    new($"{m.Prefix}_update", ["id", "code", "name", .. extra, "isActive"], ["id", "code", "name", .. extra, "isActive"], "update"),
+                    new($"{m.Prefix}_delete", ["id"], ["id"], "delete"),
+                };
+            }),
+        new("article_sales_data_get", ["articleId"], ["articleId"], "read"),
+        new("article_sales_data_set", ["articleId", "categoryId", "taxRateIds", "salesPrice"],
+            ["articleId", "categoryId", "taxRateIds", "salesPrice"], "update"),
+        new("article_sales_data_list", ["search", "categoryId", "taxRateId", "priced", "isActive", "limit", "offset"], [], "read"),
+        new("article_barcode_list", ["barcode", "articleId", "limit", "offset"], [], "read"),
+        new("article_barcode_get", ["id"], ["id"], "read"),
+        new("article_barcode_create", ["articleId", "barcode"], ["articleId", "barcode"], "create"),
+        new("article_barcode_delete", ["id"], ["id"], "delete"),
+    ];
+
+    // The complete list (spec 004, section 5.3; specs 005 to 012 and P01, section 5): a new tool must be added here by its spec.
     private static readonly Expected[] Tools =
         [.. Spec003Tools, .. Spec004Tools, .. Spec005Tools, .. Spec006Tools, .. Spec007Tools, .. Spec009Tools, .. Spec010Tools,
-            .. Spec011Tools, .. Spec012Tools];
+            .. Spec011Tools, .. Spec012Tools, .. SpecP01Tools];
 
     private async Task<Dictionary<string, Tool>> ListToolsAsync(string? key = null)
     {
@@ -164,7 +191,7 @@ public class McpToolListTests(XerpFixture app)
     private static string[] Sorted(IEnumerable<string> values) => values.Order(StringComparer.Ordinal).ToArray();
 
     [Fact]
-    public async Task AC40_S004_AC90_S005_AC80_S006_AC80_S007_AC80_S009_AC85_S010_AC85_S011_AC70_S012_AC12_Tool_list_is_exactly_the_62_tools_of_the_specs()
+    public async Task AC40_S004_AC90_S005_AC80_S006_AC80_S007_AC80_S009_AC85_S010_AC85_S011_AC70_S012_AC12_SP01_AC12_Tool_list_is_exactly_the_84_tools_of_the_specs()
     {
         var tools = await ListToolsAsync();
 
@@ -177,7 +204,8 @@ public class McpToolListTests(XerpFixture app)
         Assert.Equal(8, Spec010Tools.Length);
         Assert.Equal(4, Spec011Tools.Length);
         Assert.Equal(5, Spec012Tools.Length);
-        Assert.Equal(62, Tools.Length);
+        Assert.Equal(22, SpecP01Tools.Length);
+        Assert.Equal(84, Tools.Length);
         Assert.Equal(Sorted(Tools.Select(t => t.Name)), Sorted(tools.Keys));
         Assert.DoesNotContain("api_key_create", tools.Keys);
         Assert.DoesNotContain(tools.Keys, name => name.StartsWith("tenant", StringComparison.OrdinalIgnoreCase));
@@ -329,8 +357,8 @@ public class McpToolListTests(XerpFixture app)
     {
         var tools = await ListToolsAsync();
 
-        // "No new tool; tools/list still returns exactly the 37 tools of spec 007" — 45 since spec 009, 53 since spec 010, 57 since spec 011, 62 since spec 012.
-        Assert.Equal(62, Tools.Length);
+        // "No new tool; tools/list still returns exactly the 37 tools of spec 007" — 45 since spec 009, 53 since spec 010, 57 since spec 011, 62 since spec 012, 84 since spec P01.
+        Assert.Equal(84, Tools.Length);
         Assert.Equal(Sorted(Tools.Select(t => t.Name)), Sorted(tools.Keys));
         Assert.DoesNotContain(tools.Keys, name => name.Contains("count", StringComparison.OrdinalIgnoreCase));
         // The one place where a criterion asks for words in a description (AC-80).
@@ -591,7 +619,7 @@ public class McpToolListTests(XerpFixture app)
         // Section 5: create and update gain "partnerId? (uuid or null)", list gains "partnerId? (uuid)"; the tool list is unchanged.
         var tools = await ListToolsAsync();
 
-        Assert.Equal(62, tools.Count);
+        Assert.Equal(84, tools.Count);
         var schema = tools[toolName].InputSchema;
         Assert.True(schema.GetProperty("properties").TryGetProperty("partnerId", out var property), $"{toolName} has no partnerId property.");
         Assert.True(property.TryGetProperty("description", out var description) && !string.IsNullOrWhiteSpace(description.GetString()),
@@ -647,6 +675,37 @@ public class McpToolListTests(XerpFixture app)
     // ---- spec 012, AC-12 and section 5 ----
 
     [Fact]
+    public async Task SP01_AC12_The_22_tools_of_sales_master_data_have_description_closed_input_schema_and_annotations()
+    {
+        var tools = await ListToolsAsync();
+
+        Assert.Equal(84, tools.Count);
+        AssertMetadata(tools, SpecP01Tools);
+        AssertAnnotations(tools, SpecP01Tools);
+        string Description(string name) => tools[name].Description ?? "";
+        // Section 5: "The description of article_sales_data_set says that salesPrice includes tax."
+        Assert.Contains("tax", Description("article_sales_data_set"), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("includ", Description("article_sales_data_set"), StringComparison.OrdinalIgnoreCase);
+        // "Every tool with description (naming its error codes and, where rules judge it, rule_list with the group)."
+        Assert.Contains("BARCODE_TAKEN", Description("article_barcode_create"), StringComparison.Ordinal);
+        foreach (var name in new[] { "article_barcode_create", "article_sales_data_set" })
+        {
+            Assert.Contains("rule_list", Description(name), StringComparison.Ordinal);
+            Assert.Contains("article", Description(name), StringComparison.Ordinal);
+        }
+        foreach (var (prefix, group) in new[] { ("article_category", "articleCategory"), ("tax_rate", "taxRate"), ("payment_method", "paymentMethod") })
+            foreach (var operation in new[] { "create", "update" })
+            {
+                Assert.Contains("rule_list", Description($"{prefix}_{operation}"), StringComparison.Ordinal);
+                Assert.Contains(group, Description($"{prefix}_{operation}"), StringComparison.Ordinal);
+                Assert.Contains("NAME_TAKEN", Description($"{prefix}_{operation}"), StringComparison.Ordinal);
+            }
+        // { id?, code? } — exactly one; both optional in the schema, as uom_get.
+        foreach (var name in new[] { "article_category_get", "tax_rate_get", "payment_method_get" })
+            Assert.False(tools[name].InputSchema.TryGetProperty("required", out var required) && required.GetArrayLength() > 0, $"{name}: id and code are both optional.");
+    }
+
+    [Fact]
     public async Task S012_AC12_The_five_rule_tools_have_description_closed_input_schema_output_schema_and_annotations()
     {
         var tools = await ListToolsAsync();
@@ -654,7 +713,7 @@ public class McpToolListTests(XerpFixture app)
         // The literal list of AC-12: the 57 of spec 011 and these five.
         foreach (var name in new[] { "rule_list", "rule_get", "rule_set", "rule_reset", "rule_change_list" })
             Assert.Contains(name, tools.Keys);
-        Assert.Equal(62, tools.Count);
+        Assert.Equal(84, tools.Count);
         AssertMetadata(tools, Spec012Tools);
         AssertAnnotations(tools, Spec012Tools);
         // "rule_set, rule_reset not read-only, idempotent, not destructive."
