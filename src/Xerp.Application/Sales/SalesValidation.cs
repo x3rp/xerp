@@ -49,6 +49,8 @@ public static class SalesValidation
     public static Result<SalesDataValues> SalesData(SetArticleSalesDataInput input, TenantRules rules)
     {
         var errors = new ValidationErrors();
+        // Each member is judged by its rule right after its own form, so errors keep the order of the members.
+        var required = new RequiredFields(rules, RuleRegistry.SalesDataRequiredFields);
 
         Guid? categoryId = null;
         if (!input.Has(nameof(input.CategoryId)))
@@ -58,6 +60,8 @@ public static class SalesValidation
             if (Guid.TryParse(input.CategoryId, out var parsed)) categoryId = parsed;
             else errors.Add("categoryId", "categoryId must be the id (UUID) of an article category, or null.");
         }
+
+        required.CheckValue(errors, "categoryId", input.CategoryId is null);
 
         var taxRateIds = new List<Guid?>();
         if (input.TaxRateIds is not { } given)
@@ -74,6 +78,8 @@ public static class SalesValidation
                 errors.Add($"taxRateIds[{i}]", "This tax rate is already in the list: a tax applies once.");
         }
 
+        required.CheckValue(errors, "taxRateIds", input.TaxRateIds is { Count: 0 });
+
         if (!input.Has(nameof(input.SalesPrice)))
             errors.Add("salesPrice", "salesPrice is required: the price with tax as a JSON number, or null for none.");
         else if (input.SalesPrice is { } price && !SalesDataRules.IsValidSalesPrice(price))
@@ -81,9 +87,6 @@ public static class SalesValidation
                 $"salesPrice must be between 0 and {SalesDataRules.MaxSalesPrice.ToString(CultureInfo.InvariantCulture)}, "
                 + $"with at most {SalesDataRules.SalesPriceDecimalPlaces} decimal places.");
 
-        var required = new RequiredFields(rules, RuleRegistry.SalesDataRequiredFields);
-        required.CheckValue(errors, "categoryId", input.CategoryId is null);
-        required.CheckValue(errors, "taxRateIds", input.TaxRateIds is { Count: 0 });
         required.CheckValue(errors, "salesPrice", input.SalesPrice is null);
 
         if (errors.Any)
