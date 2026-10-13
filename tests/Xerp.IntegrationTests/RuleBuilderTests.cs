@@ -148,7 +148,7 @@ public class RuleBuilderTests(XerpFixture app)
         var s = await Orders.SetupAsync(app);
         var before = await Rules.ListAsync(s.Http);
         // Written directly: no operation can store a key that is no rule. Among them the keys of the first text of the spec.
-        foreach (var key in new[] { "stock.negativeStock", "quantity.decimals", "nope", "Stock.NegativeStockAllowed", "partner.roleRequired" })
+        foreach (var key in new[] { "stock.negativeStock", "quantity.decimals", "nope", "Stock.NegativeStockAllowed", "document.maxLines" })
             Assert.Equal(1, await app.ExecuteSqlAsync(
                 """INSERT INTO "RuleValues" ("TenantId", "Key", "Value", "UpdatedAt", "UpdatedBy") VALUES (@t, @key, TRUE, now(), @k)""",
                 ("t", s.Tenant.Id), ("key", key), ("k", s.Tenant.ApiKeyId)));

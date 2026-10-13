@@ -22,7 +22,7 @@ public class ArticleValidationTests
     [Fact]
     public void R1_R2_R3_R10_Create_trims_and_applies_defaults()
     {
-        var result = ArticleValidation.Create(new CreateArticleInput("  A1  ", "  Bolt  ", "stock", U));
+        var result = AtDefaults.Create(new CreateArticleInput("  A1  ", "  Bolt  ", "stock", U));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(new ArticleValues("A1", "Bolt", null, ArticleType.Stock, Unit, true), result.Value);
@@ -31,7 +31,7 @@ public class ArticleValidationTests
     [Fact]
     public void R3_R10_Create_keeps_explicit_values()
     {
-        var result = ArticleValidation.Create(new CreateArticleInput("A1", "Bolt", "service", U, "  line1\nline2  ", false));
+        var result = AtDefaults.Create(new CreateArticleInput("A1", "Bolt", "service", U, "  line1\nline2  ", false));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(new ArticleValues("A1", "Bolt", "line1\nline2", ArticleType.Service, Unit, false), result.Value);
@@ -42,7 +42,7 @@ public class ArticleValidationTests
     [InlineData("   ")]
     public void R3_Empty_description_becomes_null(string description)
     {
-        var result = ArticleValidation.Create(new CreateArticleInput("A1", "Bolt", "stock", U, description));
+        var result = AtDefaults.Create(new CreateArticleInput("A1", "Bolt", "stock", U, description));
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value!.Description);
@@ -51,11 +51,11 @@ public class ArticleValidationTests
     [Fact]
     public void E4_Length_limits()
     {
-        Assert.True(ArticleValidation.Create(new CreateArticleInput(
+        Assert.True(AtDefaults.Create(new CreateArticleInput(
             new string('c', 50), new string('n', 200), "stock", U, new string('d', 2000))).IsSuccess);
-        AssertInvalid(ArticleValidation.Create(new CreateArticleInput(new string('c', 51), "Name", "stock", U)), "code");
-        AssertInvalid(ArticleValidation.Create(new CreateArticleInput("A1", new string('n', 201), "stock", U)), "name");
-        AssertInvalid(ArticleValidation.Create(new CreateArticleInput("A1", "Name", "stock", U, new string('d', 2001))), "description");
+        AssertInvalid(AtDefaults.Create(new CreateArticleInput(new string('c', 51), "Name", "stock", U)), "code");
+        AssertInvalid(AtDefaults.Create(new CreateArticleInput("A1", new string('n', 201), "stock", U)), "name");
+        AssertInvalid(AtDefaults.Create(new CreateArticleInput("A1", "Name", "stock", U, new string('d', 2001))), "description");
     }
 
     [Theory]
@@ -67,7 +67,7 @@ public class ArticleValidationTests
     [InlineData("a%")]
     public void E1_Create_with_bad_code_reports_code(string? code)
     {
-        AssertInvalid(ArticleValidation.Create(new CreateArticleInput(code, "Name", "stock", U)), "code");
+        AssertInvalid(AtDefaults.Create(new CreateArticleInput(code, "Name", "stock", U)), "code");
     }
 
     [Theory]
@@ -76,7 +76,7 @@ public class ArticleValidationTests
     [InlineData("   ")]
     public void E1_Create_with_bad_name_reports_name(string? name)
     {
-        AssertInvalid(ArticleValidation.Create(new CreateArticleInput("A1", name, "stock", U)), "name");
+        AssertInvalid(AtDefaults.Create(new CreateArticleInput("A1", name, "stock", U)), "name");
     }
 
     [Theory]
@@ -87,7 +87,7 @@ public class ArticleValidationTests
     [InlineData(" stock ")]
     public void E2_Create_with_bad_type_reports_type(string? type)
     {
-        AssertInvalid(ArticleValidation.Create(new CreateArticleInput("A1", "Name", type, U)), "type");
+        AssertInvalid(AtDefaults.Create(new CreateArticleInput("A1", "Name", type, U)), "type");
     }
 
     [Theory]
@@ -97,23 +97,23 @@ public class ArticleValidationTests
     [InlineData("kg")]
     public void E3_Create_with_bad_baseUnitId_reports_baseUnitId(string? baseUnitId)
     {
-        AssertInvalid(ArticleValidation.Create(new CreateArticleInput("A1", "Name", "stock", baseUnitId)), "baseUnitId");
+        AssertInvalid(AtDefaults.Create(new CreateArticleInput("A1", "Name", "stock", baseUnitId)), "baseUnitId");
     }
 
     [Fact]
     public void R13_Create_reports_all_invalid_fields_at_once()
     {
-        AssertInvalid(ArticleValidation.Create(new CreateArticleInput(null, null, null, null)), "baseUnitId", "code", "name", "type");
+        AssertInvalid(AtDefaults.Create(new CreateArticleInput(null, null, null, null)), "baseUnitId", "code", "name", "type");
         AssertInvalid(
-            ArticleValidation.Create(new CreateArticleInput("a b", " ", "goods", "abc", new string('d', 2001))),
+            AtDefaults.Create(new CreateArticleInput("a b", " ", "goods", "abc", new string('d', 2001))),
             "baseUnitId", "code", "description", "name", "type");
     }
 
     [Fact]
     public void R11_Replace_accepts_a_complete_input_with_a_text_or_null_description()
     {
-        var withText = ArticleValidation.Replace(new ReplaceArticleInput(" ART-002 ", " Bolt M10 ", "service", U, false) { Description = " zinc " });
-        var withNull = ArticleValidation.Replace(new ReplaceArticleInput("ART-002", "Bolt M10", "stock", U, true) { Description = null });
+        var withText = AtDefaults.Replace(new ReplaceArticleInput(" ART-002 ", " Bolt M10 ", "service", U, false) { Description = " zinc " });
+        var withNull = AtDefaults.Replace(new ReplaceArticleInput("ART-002", "Bolt M10", "stock", U, true) { Description = null });
 
         Assert.True(withText.IsSuccess);
         Assert.Equal(new ArticleValues("ART-002", "Bolt M10", "zinc", ArticleType.Service, Unit, false), withText.Value);
@@ -124,17 +124,17 @@ public class ArticleValidationTests
     [Fact]
     public void R11_Replace_requires_all_six_fields_to_be_present()
     {
-        AssertInvalid(ArticleValidation.Replace(new ReplaceArticleInput("A1", "Name", "stock", U, true)), "description");
-        AssertInvalid(ArticleValidation.Replace(new ReplaceArticleInput(null, "Name", "stock", U, true) { Description = null }), "code");
-        AssertInvalid(ArticleValidation.Replace(new ReplaceArticleInput("A1", null, "stock", U, true) { Description = null }), "name");
-        AssertInvalid(ArticleValidation.Replace(new ReplaceArticleInput("A1", "Name", null, U, true) { Description = null }), "type");
-        AssertInvalid(ArticleValidation.Replace(new ReplaceArticleInput("A1", "Name", "stock", null, true) { Description = null }), "baseUnitId");
-        AssertInvalid(ArticleValidation.Replace(new ReplaceArticleInput("A1", "Name", "stock", U, null) { Description = null }), "isActive");
+        AssertInvalid(AtDefaults.Replace(new ReplaceArticleInput("A1", "Name", "stock", U, true)), "description");
+        AssertInvalid(AtDefaults.Replace(new ReplaceArticleInput(null, "Name", "stock", U, true) { Description = null }), "code");
+        AssertInvalid(AtDefaults.Replace(new ReplaceArticleInput("A1", null, "stock", U, true) { Description = null }), "name");
+        AssertInvalid(AtDefaults.Replace(new ReplaceArticleInput("A1", "Name", null, U, true) { Description = null }), "type");
+        AssertInvalid(AtDefaults.Replace(new ReplaceArticleInput("A1", "Name", "stock", null, true) { Description = null }), "baseUnitId");
+        AssertInvalid(AtDefaults.Replace(new ReplaceArticleInput("A1", "Name", "stock", U, null) { Description = null }), "isActive");
         AssertInvalid(
-            ArticleValidation.Replace(new ReplaceArticleInput(null, null, null, null, null)),
+            AtDefaults.Replace(new ReplaceArticleInput(null, null, null, null, null)),
             "baseUnitId", "code", "description", "isActive", "name", "type");
         AssertInvalid(
-            ArticleValidation.Replace(new ReplaceArticleInput("A1", "Name", "stock", U, true) { Description = new string('d', 2001) }),
+            AtDefaults.Replace(new ReplaceArticleInput("A1", "Name", "stock", U, true) { Description = new string('d', 2001) }),
             "description");
     }
 

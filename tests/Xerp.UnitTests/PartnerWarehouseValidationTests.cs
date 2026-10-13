@@ -59,7 +59,7 @@ public class PartnerWarehouseValidationTests
     [Fact]
     public void R6_R14_Partner_create_trims_and_applies_defaults()
     {
-        var result = PartnerValidation.Create(new PartnerInput { Code = "  P1 ", Name = " Acme ", IsCustomer = true });
+        var result = AtDefaults.Create(new PartnerInput { Code = "  P1 ", Name = " Acme ", IsCustomer = true });
 
         Assert.True(result.IsSuccess);
         Assert.Equal(new PartnerValues("P1", "Acme", true, false, null, Address.Empty, true), result.Value);
@@ -68,7 +68,7 @@ public class PartnerWarehouseValidationTests
     [Fact]
     public void Partner_create_keeps_explicit_values()
     {
-        var result = PartnerValidation.Create(Partner(FullPartner()));
+        var result = AtDefaults.Create(Partner(FullPartner()));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(
@@ -80,28 +80,28 @@ public class PartnerWarehouseValidationTests
     [Fact]
     public void E7_Empty_partner_reports_code_name_and_both_roles_together()
     {
-        AssertInvalid(PartnerValidation.Create(new PartnerInput()), "code", "name", "isCustomer", "isSupplier");
+        AssertInvalid(AtDefaults.Create(new PartnerInput()), "code", "name", "isCustomer", "isSupplier");
     }
 
     [Fact]
     public void R15_E2_Partner_create_without_a_role_names_both_role_fields()
     {
-        AssertInvalid(PartnerValidation.Create(new PartnerInput { Code = "P", Name = "x" }), "isCustomer", "isSupplier");
-        AssertInvalid(PartnerValidation.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = false, IsSupplier = false }), "isCustomer", "isSupplier");
-        AssertInvalid(PartnerValidation.Create(new PartnerInput { Code = "P", Name = "x", IsSupplier = false }), "isCustomer", "isSupplier");
-        AssertInvalid(PartnerValidation.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = false }), "isCustomer", "isSupplier");
+        AssertInvalid(AtDefaults.Create(new PartnerInput { Code = "P", Name = "x" }), "isCustomer", "isSupplier");
+        AssertInvalid(AtDefaults.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = false, IsSupplier = false }), "isCustomer", "isSupplier");
+        AssertInvalid(AtDefaults.Create(new PartnerInput { Code = "P", Name = "x", IsSupplier = false }), "isCustomer", "isSupplier");
+        AssertInvalid(AtDefaults.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = false }), "isCustomer", "isSupplier");
 
-        var supplierOnly = PartnerValidation.Create(new PartnerInput { Code = "P", Name = "x", IsSupplier = true });
+        var supplierOnly = AtDefaults.Create(new PartnerInput { Code = "P", Name = "x", IsSupplier = true });
         Assert.Equal((false, true), (supplierOnly.Value!.IsCustomer, supplierOnly.Value.IsSupplier));
-        Assert.True(PartnerValidation.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = true, IsSupplier = true }).IsSuccess);
+        Assert.True(AtDefaults.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = true, IsSupplier = true }).IsSuccess);
     }
 
     [Fact]
     public void R9_A_boolean_given_as_null_is_a_wrong_value_not_an_omitted_one()
     {
-        AssertInvalid(PartnerValidation.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = null, IsSupplier = true }), "isCustomer");
-        AssertInvalid(PartnerValidation.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = true, IsActive = null }), "isActive");
-        AssertInvalid(WarehouseValidation.Create(new WarehouseInput { Code = "W", Name = "x", IsActive = null }), "isActive");
+        AssertInvalid(AtDefaults.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = null, IsSupplier = true }), "isCustomer");
+        AssertInvalid(AtDefaults.Create(new PartnerInput { Code = "P", Name = "x", IsCustomer = true, IsActive = null }), "isActive");
+        AssertInvalid(AtDefaults.Create(new WarehouseInput { Code = "W", Name = "x", IsActive = null }), "isActive");
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class PartnerWarehouseValidationTests
             foreach (var field in AddressFields)
                 json[field] = empty?.DeepClone();
 
-            var result = PartnerValidation.Create(Partner(json));
+            var result = AtDefaults.Create(Partner(json));
 
             Assert.True(result.IsSuccess);
             Assert.Null(result.Value!.TaxId);
@@ -132,10 +132,10 @@ public class PartnerWarehouseValidationTests
     {
         JsonObject Body(string value) => With(new JsonObject { ["code"] = "P", ["name"] = "x", ["isCustomer"] = true }, field, value);
 
-        Assert.True(PartnerValidation.Create(Partner(Body(new string('x', maxLength)))).IsSuccess);
-        AssertInvalid(PartnerValidation.Create(Partner(Body(new string('x', maxLength + 1)))), field);
-        AssertInvalid(PartnerValidation.Create(Partner(Body("a\nb"))), field);
-        AssertInvalid(PartnerValidation.Create(Partner(Body("a\u0000b"))), field);
+        Assert.True(AtDefaults.Create(Partner(Body(new string('x', maxLength)))).IsSuccess);
+        AssertInvalid(AtDefaults.Create(Partner(Body(new string('x', maxLength + 1)))), field);
+        AssertInvalid(AtDefaults.Create(Partner(Body("a\nb"))), field);
+        AssertInvalid(AtDefaults.Create(Partner(Body("a\u0000b"))), field);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class PartnerWarehouseValidationTests
     {
         var input = new PartnerInput { Code = "P", Name = "x", IsCustomer = true, CountryCode = "hr", TaxId = new string('1', 51) };
 
-        AssertInvalid(PartnerValidation.Create(input), "countryCode", "taxId");
+        AssertInvalid(AtDefaults.Create(input), "countryCode", "taxId");
     }
 
     // ---- partners: replace
@@ -151,7 +151,7 @@ public class PartnerWarehouseValidationTests
     [Fact]
     public void R7_Partner_replace_accepts_all_twelve_fields()
     {
-        var result = PartnerValidation.Replace(Partner(FullPartner()));
+        var result = AtDefaults.Replace(Partner(FullPartner()));
 
         Assert.True(result.IsSuccess);
         Assert.Equal("HR123", result.Value!.TaxId);
@@ -162,7 +162,7 @@ public class PartnerWarehouseValidationTests
     public void R7_R21_Partner_replace_requires_every_field_to_be_present()
     {
         foreach (var field in FullPartner().Select(p => p.Key).ToList())
-            AssertInvalid(PartnerValidation.Replace(Partner(Without(FullPartner(), field))), field);
+            AssertInvalid(AtDefaults.Replace(Partner(Without(FullPartner(), field))), field);
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class PartnerWarehouseValidationTests
         foreach (var field in AddressFields)
             json[field] = null;
 
-        var result = PartnerValidation.Replace(Partner(json));
+        var result = AtDefaults.Replace(Partner(json));
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value!.TaxId);
@@ -182,15 +182,15 @@ public class PartnerWarehouseValidationTests
     [Fact]
     public void R15_Partner_replace_cannot_remove_the_last_role()
     {
-        AssertInvalid(PartnerValidation.Replace(Partner(With(FullPartner(), "isCustomer", false))), "isCustomer", "isSupplier");
-        Assert.True(PartnerValidation.Replace(Partner(With(With(FullPartner(), "isCustomer", false), "isSupplier", true))).IsSuccess);
+        AssertInvalid(AtDefaults.Replace(Partner(With(FullPartner(), "isCustomer", false))), "isCustomer", "isSupplier");
+        Assert.True(AtDefaults.Replace(Partner(With(With(FullPartner(), "isCustomer", false), "isSupplier", true))).IsSuccess);
     }
 
     [Fact]
     public void R9_Partner_replace_with_a_null_boolean_reports_that_field_only()
     {
-        AssertInvalid(PartnerValidation.Replace(Partner(With(FullPartner(), "isSupplier", null))), "isSupplier");
-        AssertInvalid(PartnerValidation.Replace(Partner(With(FullPartner(), "isActive", null))), "isActive");
+        AssertInvalid(AtDefaults.Replace(Partner(With(FullPartner(), "isSupplier", null))), "isSupplier");
+        AssertInvalid(AtDefaults.Replace(Partner(With(FullPartner(), "isActive", null))), "isActive");
     }
 
     // ---- partners: list
@@ -212,7 +212,7 @@ public class PartnerWarehouseValidationTests
     [Fact]
     public void Warehouse_create_trims_and_applies_defaults()
     {
-        var result = WarehouseValidation.Create(new WarehouseInput { Code = " WH-1 ", Name = " Main ", City = " Zagreb " });
+        var result = AtDefaults.Create(new WarehouseInput { Code = " WH-1 ", Name = " Main ", City = " Zagreb " });
 
         Assert.True(result.IsSuccess);
         Assert.Equal(new WarehouseValues("WH-1", "Main", Address.Create(null, null, null, "Zagreb", null, null), true), result.Value);
@@ -221,23 +221,23 @@ public class PartnerWarehouseValidationTests
     [Fact]
     public void Warehouse_create_reports_all_invalid_fields_together()
     {
-        AssertInvalid(WarehouseValidation.Create(new WarehouseInput()), "code", "name");
+        AssertInvalid(AtDefaults.Create(new WarehouseInput()), "code", "name");
         AssertInvalid(
-            WarehouseValidation.Create(new WarehouseInput { Code = "a b", Name = "a\nb", City = "a\u0000b", CountryCode = "HRV", PostalCode = new string('1', 21) }),
+            AtDefaults.Create(new WarehouseInput { Code = "a b", Name = "a\nb", City = "a\u0000b", CountryCode = "HRV", PostalCode = new string('1', 21) }),
             "code", "name", "city", "countryCode", "postalCode");
     }
 
     [Fact]
     public void R7_Warehouse_replace_requires_all_nine_fields_and_accepts_null_addresses()
     {
-        Assert.True(WarehouseValidation.Replace(Warehouse(FullWarehouse())).IsSuccess);
+        Assert.True(AtDefaults.Replace(Warehouse(FullWarehouse())).IsSuccess);
         foreach (var field in FullWarehouse().Select(p => p.Key).ToList())
-            AssertInvalid(WarehouseValidation.Replace(Warehouse(Without(FullWarehouse(), field))), field);
+            AssertInvalid(AtDefaults.Replace(Warehouse(Without(FullWarehouse(), field))), field);
 
         var cleared = FullWarehouse();
         foreach (var field in AddressFields)
             cleared[field] = null;
-        Assert.Equal(Address.Empty, WarehouseValidation.Replace(Warehouse(cleared)).Value!.Address);
+        Assert.Equal(Address.Empty, AtDefaults.Replace(Warehouse(cleared)).Value!.Address);
     }
 
     [Fact]
