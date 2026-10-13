@@ -156,7 +156,7 @@ public class RuleBuilderTests(XerpFixture app)
         // Not listed, not counted, not found - and the six rules are untouched.
         var list = await Rules.ListAsync(s.Http);
         McpAssert.JsonEqual(before, list, "A stored value with an unknown key changed the list of rules");
-        Assert.Equal(Rules.Keys, list.RuleKeys());
+        Assert.Equal(Rules.All, list.RuleKeys());
         Assert.Equal(0, (await Rules.ListAsync(s.Http, "?source=tenant")).Total());
         using (var unknown = await s.Http.GetAsync(Rules.PathOf("stock.negativeStock")))
             await HttpAssert.NotFoundAsync(unknown);
