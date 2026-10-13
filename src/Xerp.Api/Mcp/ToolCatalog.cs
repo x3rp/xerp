@@ -298,7 +298,7 @@ public static class ToolCatalog
         [
             XerpTool.For<TList, PagedResult<TDto>>($"{tool}_list", ToolKind.Read,
                 $"Lists the tenant's {plural} ordered by code, with paging; `total` counts all matches. Filters combine with AND. " + Validation,
-                Input([], [Search("the code or the name"), .. ownFilters, IsActiveFilter(plural), .. Paging]),
+                Input([], [Search("the code or the name"), IsActiveFilter(plural), .. ownFilters, .. Paging]),
                 (services, input, ct) => list(services.GetRequiredService<TOperations>(), input, ct)),
 
             XerpTool.For<RecordAddressInput, TDto>($"{tool}_get", ToolKind.Read,
