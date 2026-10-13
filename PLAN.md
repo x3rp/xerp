@@ -43,9 +43,21 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 011 | Zadano (centralno) skladište, lager lista po skladištu, spremljeni saldo zaliha | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 011a | Partner u zaglavlju skladišnog dokumenta (primka: dobavljač, izdatnica: kupac) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 012 | Konfigurabilna pravila (booleovi prekidači): registar, vrijednosti po tenantu, prvih 6 pravila | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 013 | Konfigurabilna pravila: matični podaci (formati, duljine, obavezna polja) | ✅ | 🔄 | ⬜ | ⬜ | ⬜ |
+| 013 | Konfigurabilna pravila: matični podaci (formati, duljine, obavezna polja) | ✅ | ✅ | ✅ | ⬜ | ⬜ |
 | 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
+| P01 | Temelji prodaje: kategorije artikala, barkodovi, prodajne cijene, porezne stope, načini plaćanja | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P02 | Djelatnici (konobari, PIN) i ovlasti za osjetljive radnje (cijena, popust, storno, povrat) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P03 | Opcije i dodaci artikala; normativi (sastojci artikala koji se pripremaju) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P04 | POS mjesto (blagajna na skladištu), izbor artikala za POS, raspored tipki | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P05 | POS račun: otvaranje, stavke, napomene, popusti, storno s razlogom, otvorena narudžba, nastavak; idempotentnost | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P06 | Naplata i izdavanje računa: gotovina, kartica, kombinirano, povrat gotovine, kopija; knjiženje prodaje i zaliha (i po normativu); storno/povrat nakon naplate | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P07 | Smjene i blagajna: otvaranje, uplate/isplate, predaja, zaključak, brojanje, razlika, izvještaji prometa | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P08 | Stolovi i zone, statusi stola, konobar na računu, premještanje, prijenos, podjela i spajanje računa | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P09 | Priprema: mjesta pripreme, usmjeravanje, slanje (i naknadnih stavki), statusi i vremena, ekran kuhinje/šanka | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P10 | Fiskalizacija (HR), kartični terminal, pisači, offline rad | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| | **— odgođeno dok POS ne bude gotov: 014, 015 i sve ispod —** | | | | | |
 | 016 | Kontni plan + temeljnice | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 017 | Brojčane serije dokumenata | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 018 | Porezi + izlazni/ulazni računi | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -60,9 +72,9 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 
 ## Što tko trenutno radi
 
-- **Arhitekt:** spec 015 napisan (čeka odluke vlasnika, §12); zaustavljen do reviewa 013.
-- **Builder:** implementira 013 na `feat/013-master-data-rules`.
-- **Tester:** piše testove prihvaćanja za 013.
+- **Arhitekt:** review 013; zatim pregled POS modula (`docs/pos.md`) i spec P01.
+- **Builder:** 013 predan na review (`af47489`); čeka P01.
+- **Tester:** testovi 013 predani (`a2bfd39`); čeka spec P01.
 
 ## Dnevnik
 
@@ -114,6 +126,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-10 — review 012: kod prihvaćen, 6 testerovih testova ispravljeno (`c775320`); ponovni review OK; orkestrator pokrenuo 657 unit + 1854 integracijska testa; 012 spojen u `main` i pushan.
 - 2026-10-12 — specovi 013 (24 prekidača) i 014 (13 prekidača) commitani; API ponovno izgrađen iz `main` (MCP: 62 alata, uključujući `rule_*`); MCP registriran u Claude Codeu za `xerp-cli` i provjeren od početka do kraja; tester kreće na 013.
 - 2026-10-13 — spec 015 (vrednovanje zaliha: pomični prosjek po artiklu i skladištu, 3 pravila, ADR-0021) commitan; tester i builder rade 013.
+- 2026-10-13 — vlasnik traži POS modul kao nadogradnju na ERP sa zasebnim frontendom; plan P01–P10 dodan; 013 se dovršava, 014 i 015 se odgađaju.
 
 ## Odluke vlasnika
 
