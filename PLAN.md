@@ -45,7 +45,7 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 012 | Konfigurabilna pravila (booleovi prekidači): registar, vrijednosti po tenantu, prvih 6 pravila | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 013 | Konfigurabilna pravila: matični podaci (formati, duljine, obavezna polja) | ✅ | 🔄 | ⬜ | ⬜ | ⬜ |
 | 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
-| 015 | Vrednovanje zaliha | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 016 | Kontni plan + temeljnice | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 017 | Brojčane serije dokumenata | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 018 | Porezi + izlazni/ulazni računi | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -60,8 +60,8 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 
 ## Što tko trenutno radi
 
-- **Arhitekt:** specovi 013 i 014 napisani; čeka review 013.
-- **Builder:** zaustavljen; čeka spec i testove za 013.
+- **Arhitekt:** spec 015 napisan (čeka odluke vlasnika, §12); zaustavljen do reviewa 013.
+- **Builder:** implementira 013 na `feat/013-master-data-rules`.
 - **Tester:** piše testove prihvaćanja za 013.
 
 ## Dnevnik
@@ -113,6 +113,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-10 — kod za 012 gotov (`68ce94f`), na reviewu.
 - 2026-10-10 — review 012: kod prihvaćen, 6 testerovih testova ispravljeno (`c775320`); ponovni review OK; orkestrator pokrenuo 657 unit + 1854 integracijska testa; 012 spojen u `main` i pushan.
 - 2026-10-12 — specovi 013 (24 prekidača) i 014 (13 prekidača) commitani; API ponovno izgrađen iz `main` (MCP: 62 alata, uključujući `rule_*`); MCP registriran u Claude Codeu za `xerp-cli` i provjeren od početka do kraja; tester kreće na 013.
+- 2026-10-13 — spec 015 (vrednovanje zaliha: pomični prosjek po artiklu i skladištu, 3 pravila, ADR-0021) commitan; tester i builder rade 013.
 
 ## Odluke vlasnika
 
