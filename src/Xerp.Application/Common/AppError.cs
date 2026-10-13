@@ -30,6 +30,7 @@ public static class ErrorCodes
     public const string CodeChangeNotAllowed = "CODE_CHANGE_NOT_ALLOWED";
     public const string NameTaken = "NAME_TAKEN";
     public const string TaxIdTaken = "TAX_ID_TAKEN";
+    public const string BarcodeTaken = "BARCODE_TAKEN";
     public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
     public const string InternalError = "INTERNAL_ERROR";
 }
@@ -99,6 +100,21 @@ public sealed record AppError(
             $"Another partner already has the tax id '{taxId}': this company's rule {rule.Key} is true. Find that partner with partner_list instead of creating a duplicate.",
             new Dictionary<string, string[]> { ["taxId"] = [$"The tax id '{taxId}' is already used (tax ids are compared case-insensitively)."] })
             .RefusedBy(rule, true);
+
+    /// <summary>
+    /// Spec P01, R16, R21: the article already has the barcode (an invariant: <paramref name="rule"/> is null and
+    /// no rule is named), or another article has it and <c>article.barcodeUnique</c> is true. Only the barcode
+    /// the caller sent is repeated, never the record that has it.
+    /// </summary>
+    public static AppError BarcodeTaken(string barcode, RuleDefinition? rule)
+    {
+        var error = new AppError(ErrorCodes.BarcodeTaken,
+            rule is null
+                ? $"The article already has the barcode '{barcode}'."
+                : $"Another article already has the barcode '{barcode}': this company's rule {rule.Key} is true. Find it with article_barcode_list.",
+            new Dictionary<string, string[]> { ["barcode"] = [$"The barcode '{barcode}' is already used (barcodes are compared exactly)."] });
+        return rule is null ? error : error.RefusedBy(rule, true);
+    }
 
     public static AppError InUse(string detail) => new(ErrorCodes.InUse, detail);
 
