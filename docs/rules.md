@@ -109,6 +109,21 @@ behaviour) and what yes and no do. `<m>` stands for each of `uom`, `article`, `p
 | `order.closesWhenFulfilled` | An order closes itself when every line is fulfilled | `false` | — |
 | `sales.confirmBeyondAvailableAllowed` | A sales order may be confirmed for more than is available | `true` | — |
 
+### Batch 015 — stock valuation (spec 015, written)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `valuation.receiptCostRequired` | Purchase cost required on a receipt that is not linked to an order | `false` | Yes: an unlinked receipt saved with a line without `unitCost` is refused. |
+| `valuation.receiptCostMayDifferFromOrder` | The cost on a receipt may differ from the price of its purchase order | `true` | No: a linked receipt saved with another cost than its order line's is refused. |
+| `valuation.uncostedReceiptAtCurrentCost` | A receipt without a cost is valued at the current cost of the stock | `true` | No: it is valued at zero. |
+
+**Invariants spec 015 adds — proposed, awaiting the owner's approval** (ADR-0021; spec 015 §12, #1):
+to I4, a ledger entry's value never changes, and original and reversal sum to zero *in quantity* (values
+need not); to I5, stored value == sum of the ledger's value per article and warehouse, and a quantity of
+zero has a value of zero; to I8, only a receipt line has a cost, and the method (moving average per article
+and warehouse, in posting order; stock below zero at the last known cost); to I10, a cost is `>= 0` with at
+most 6 decimals, a value has 2. The valuation method is a **feature**, not a switch.
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a
