@@ -6,9 +6,11 @@ using Xerp.Application.Identity;
 using Xerp.Application.Orders;
 using Xerp.Application.Partners;
 using Xerp.Application.Rules;
+using Xerp.Application.Sales;
 using Xerp.Application.Stock;
 using Xerp.Application.UnitsOfMeasure;
 using Xerp.Application.Warehouses;
+using Xerp.Domain.Sales;
 using static Xerp.Api.Mcp.ToolSchemas;
 
 namespace Xerp.Api.Mcp;
@@ -261,6 +263,86 @@ public static class ToolCatalog
     [
         ArticleIdOf("the conversion belongs to"),
         ("unitId", Uuid($"The `id` of the unit of measure, {unit} (see `uom_list`). Not the code.")),
+    ];
+
+    private const string BarcodeTaken = "`BARCODE_TAKEN`: the article already has this barcode (no rule lifts that), or this company's rule `article.barcodeUnique` is true and another article has it "
+        + "(the refusal then carries `rules`; find the article with `article_barcode_list` `barcode`; see `rule_list` with `group` = `article`).";
+
+    /// <summary>The five tools of a sales master of spec P01, section 5: the tools of a unit of measure, for another resource.</summary>
+    /// <param name="ownFields">The fields only this master has, each required on create and on update.</param>
+    /// <param name="ownFilters">The list filters only this master has.</param>
+    /// <param name="inUse">The end of the delete tool's description: what blocks a delete, or that nothing does.</param>
+    private static XerpTool[] CodedMasterTools<TOperations, TEntity, TDto, TInput, TValues, TList>(
+        string tool, string singular, string plural, string group, string example, string inUse,
+        (string Name, System.Text.Json.Nodes.JsonObject Schema)[] ownFields, (string, System.Text.Json.Nodes.JsonObject)[] ownFilters,
+        Func<TOperations, TList, CancellationToken, Task<Result<PagedResult<TDto>>>> list)
+        where TOperations : CodedMasterOperations<TEntity, TDto, TInput, TValues>
+        where TEntity : CodedMaster
+        where TDto : notnull
+        where TInput : class
+        where TValues : CodedMasterValues
+        where TList : class
+    {
+        (string, System.Text.Json.Nodes.JsonObject)[] Fields(bool update) =>
+        [
+            ("code", Text($"Unique code of the {singular} within the tenant, 1-50 characters: letters, digits, '.', '_' or '-'.")),
+            ("name", Text($"Name of the {singular}, 1-200 characters.")),
+            .. ownFields,
+            ("isActive", Flag(update
+                ? $"Whether the {singular} can be newly assigned to records. Required: an update never changes it silently."
+                : $"Whether the {singular} can be newly assigned to records; default true.")),
+        ];
+        string[] own = [.. ownFields.Select(f => f.Name)];
+        var notFound = $"`NOT_FOUND`: no such {singular} in this tenant.";
+        return
+        [
+            XerpTool.For<TList, PagedResult<TDto>>($"{tool}_list", ToolKind.Read,
+                $"Lists the tenant's {plural} ordered by code, with paging; `total` counts all matches. Filters combine with AND. " + Validation,
+                Input([], [Search("the code or the name"), .. ownFilters, IsActiveFilter(plural), .. Paging]),
+                (services, input, ct) => list(services.GetRequiredService<TOperations>(), input, ct)),
+
+            XerpTool.For<RecordAddressInput, TDto>($"{tool}_get", ToolKind.Read,
+                $"Returns one {singular}, addressed by `id` or by `code` (exactly one of the two). "
+                + "`VALIDATION_FAILED`: both or neither were given. " + notFound,
+                Input([], IdOrCode),
+                (services, input, ct) => services.GetRequiredService<TOperations>().FindAsync(input, ct)),
+
+            XerpTool.For<TInput, TDto>($"{tool}_create", ToolKind.Create,
+                $"Creates a {singular} ({example}) and returns it with its `id`. " + Validation + " " + CodeTaken + MasterRules(group, update: false),
+                Input(["code", "name", .. own], Fields(update: false)),
+                (services, input, ct) => services.GetRequiredService<TOperations>().CreateAsync(input, ct)),
+
+            XerpTool.WithId<TInput, TDto>($"{tool}_update", ToolKind.Update,
+                $"Replaces all fields of a {singular}; every argument is required. Set `isActive` to false to retire one that is in use. "
+                + Validation + " " + notFound + " " + CodeTaken + MasterRules(group, update: true),
+                Input(["id", "code", "name", .. own, "isActive"], [IdOf($"{singular} to replace"), .. Fields(update: true)]),
+                (services, id, input, ct) => services.GetRequiredService<TOperations>().ReplaceAsync(id, input, ct)),
+
+            XerpTool.For<RecordIdInput, SalesRecordDeleted>($"{tool}_delete", ToolKind.Delete,
+                $"Deletes a {singular}; returns `{{ \"deleted\": true }}`. " + notFound + " " + inUse,
+                Input(["id"], IdOf($"{singular} to delete")),
+                (services, input, ct) => services.GetRequiredService<TOperations>().DeleteAsync(input.Id, ct)),
+        ];
+    }
+
+    private static readonly (string, System.Text.Json.Nodes.JsonObject) Kind =
+        ("kind", Text("What the payment method is: `cash`, `card`, `transfer` or `other`; exact, in lower case.", [.. PaymentMethodKindNames.All]));
+
+    private static readonly (string, System.Text.Json.Nodes.JsonObject)[] SalesDataFields =
+    [
+        ("categoryId", NullableUuid("The `id` of the article's category (see `article_category_list`), or null for none. Required: it replaces what the article has.")),
+        ("taxRateIds", new System.Text.Json.Nodes.JsonObject
+        {
+            ["type"] = "array",
+            ["description"] = "The `id`s of the tax rates that apply to the article (see `tax_rate_list`): zero to four, each once. Required; `[]` for none. It replaces the article's whole list.",
+            ["maxItems"] = SalesDataRules.MaxTaxRates,
+            ["items"] = new System.Text.Json.Nodes.JsonObject { ["type"] = "string", ["format"] = "uuid" },
+        }),
+        ("salesPrice", new System.Text.Json.Nodes.JsonObject
+        {
+            ["type"] = new System.Text.Json.Nodes.JsonArray("number", "null"),
+            ["description"] = "What one base unit of the article sells for, **tax included**, as a JSON number (not a string): 0 to 999999999.999999, at most 6 decimal places; 0 is a price. Null for no price. Required.",
+        }),
     ];
 
     public static IReadOnlyList<XerpTool> All { get; } =
@@ -903,5 +985,93 @@ public static class ToolCatalog
             + "`CANNOT_REVOKE_SELF`: this is the key making the call; a key can only be revoked by another key.",
             Input(["id"], IdOf("API key to revoke")),
             (services, input, ct) => services.GetRequiredService<ApiKeyOperations>().RevokeAsync(input.Id, ct)),
+
+        // ---- sales master data (spec P01, section 5)
+        .. CodedMasterTools<ArticleCategoryOperations, ArticleCategory, ArticleCategoryDto, ArticleCategoryInput, CodedMasterValues, ListCodedMastersInput>(
+            "article_category", "article category", "article categories", "articleCategory", "for example `DRINKS`",
+            "`IN_USE`: the sales data of articles names the category (list them with `article_sales_data_list` `categoryId`); "
+            + "clear it with `article_sales_data_set`, or deactivate the category with `article_category_update` instead.",
+            [], [], (operations, input, ct) => operations.ListAsync(input, ct)),
+
+        .. CodedMasterTools<TaxRateOperations, TaxRate, TaxRateDto, TaxRateInput, TaxRateValues, ListCodedMastersInput>(
+            "tax_rate", "tax rate", "tax rates", "taxRate", "for example `VAT25` with `rate` 25",
+            "`IN_USE`: the sales data of articles names the tax rate (list them with `article_sales_data_list` `taxRateId`); "
+            + "remove it with `article_sales_data_set`, or deactivate the tax rate with `tax_rate_update` instead.",
+            [("rate", Number("The percentage as a JSON number (not a string): 0 to 100, at most 4 decimal places; 0 is a valid rate (exempt)."))],
+            [], (operations, input, ct) => operations.ListAsync(input, ct)),
+
+        .. CodedMasterTools<PaymentMethodOperations, PaymentMethod, PaymentMethodDto, PaymentMethodInput, PaymentMethodValues, ListPaymentMethodsInput>(
+            "payment_method", "payment method", "payment methods", "paymentMethod", "for example `CASH` with `kind` `cash`",
+            "Nothing references a payment method yet, so a delete is never refused with `IN_USE`.",
+            [Kind], [("kind", Text("Return only payment methods of this kind.", [.. PaymentMethodKindNames.All]))],
+            (operations, input, ct) => operations.ListAsync(input, ct)),
+
+        XerpTool.For<ArticleSalesDataAddressInput, ArticleSalesDataDto>("article_sales_data_get", ToolKind.Read,
+            "Returns the sales data of one article: its category, its tax rates (ordered by code, each with its `rate`) and its sales price, tax included. "
+            + "Every article has sales data; until it is set, `category` and `salesPrice` are null, `taxRates` is empty and `updatedAt` is null. "
+            + "`VALIDATION_FAILED`: `articleId` is missing. `NOT_FOUND`: no such article in this tenant.",
+            Input(["articleId"], ArticleIdOf("whose sales data to return")),
+            (services, input, ct) => services.GetRequiredService<ArticleSalesDataOperations>().GetAsync(input, ct)),
+
+        XerpTool.For<SetArticleSalesDataArguments, ArticleSalesDataDto>("article_sales_data_set", ToolKind.Update,
+            "Replaces the sales data of an article: its category, its tax rates and its sales price. All three are required and replace what the article has: "
+            + "pass null, `[]` and null to clear them. `salesPrice` **includes tax**: it is the price the customer pays for one base unit. "
+            + "The article itself is not changed. An inactive category or tax rate the article already has may be kept. "
+            + Validation + " This company's rules can make the category, a tax rate or the price required "
+            + "(`rule_list` with `group` = `article`: `article.categoryRequired`, `article.taxRateRequired`, `article.salesPriceRequired`); a refusal's `rules` names the rule that refused. "
+            + "`NOT_FOUND`: no such article in this tenant. "
+            + "`REFERENCE_NOT_FOUND`: `categoryId` or an element of `taxRateIds` names no record of this tenant (`errors` says which, as `taxRateIds[0]`); find ids with `article_category_list` and `tax_rate_list`. "
+            + "`REFERENCE_INACTIVE`: that category or tax rate is inactive and the article did not already have it.",
+            Input(["articleId", "categoryId", "taxRateIds", "salesPrice"], [ArticleIdOf("whose sales data to replace"), .. SalesDataFields]),
+            (services, input, ct) => services.GetRequiredService<ArticleSalesDataOperations>().SetAsync(input, ct)),
+
+        XerpTool.For<ListArticleSalesDataInput, PagedResult<ArticleSalesDataDto>>("article_sales_data_list", ToolKind.Read,
+            "Lists the sales data of the tenant's articles, one item per article - also articles whose sales data was never set - ordered by article code, with paging; "
+            + "`total` counts all matches. Filters combine with AND. " + Validation,
+            Input([],
+            [
+                Search("the article's code or name"),
+                ("categoryId", Uuid("Return only articles of the category with this `id`.")),
+                ("taxRateId", Uuid("Return only articles that have the tax rate with this `id`.")),
+                ("priced", Flag("Return only articles with a sales price (true) or only those without (false); omit for both. A price of 0 is a price.")),
+                IsActiveFilter("articles"),
+                .. Paging,
+            ]),
+            (services, input, ct) => services.GetRequiredService<ArticleSalesDataOperations>().ListAsync(input, ct)),
+
+        XerpTool.For<ListArticleBarcodesInput, PagedResult<ArticleBarcodeDto>>("article_barcode_list", ToolKind.Read,
+            "Lists barcodes of articles ordered by barcode, with paging; with `barcode` it is the lookup of what a scanner read: the article is in each item. "
+            + "Several items come back when this company allows a barcode on several articles (rule `article.barcodeUnique` false). "
+            + "Barcodes of inactive articles are returned too; read the article with `article_get` to see whether it is active. " + Validation,
+            Input([],
+            [
+                ("barcode", Text("Return only this barcode: matched exactly and case-sensitively after trimming, not as a part. 1-50 printable ASCII characters without spaces.")),
+                ArticleIdOf("whose barcodes to return"),
+                .. Paging,
+            ]),
+            (services, input, ct) => services.GetRequiredService<ArticleBarcodeOperations>().ListAsync(input, ct)),
+
+        XerpTool.For<RecordIdInput, ArticleBarcodeDto>("article_barcode_get", ToolKind.Read,
+            "Returns one barcode with its article, addressed by the barcode record's `id` (to find a barcode by its text use `article_barcode_list` `barcode`). "
+            + "`NOT_FOUND`: no such barcode record in this tenant.",
+            Input(["id"], IdOf("barcode record")),
+            (services, input, ct) => services.GetRequiredService<ArticleBarcodeOperations>().GetAsync(input, ct)),
+
+        XerpTool.For<CreateArticleBarcodeInput, ArticleBarcodeDto>("article_barcode_create", ToolKind.Create,
+            "Gives an article a barcode and returns the record with its `id`. An article may have several barcodes; a barcode names the article in its base unit. "
+            + "The barcode is trimmed and otherwise stored as sent: `00123` and `123`, `abc` and `ABC` are different barcodes; no check digit is verified. "
+            + "A barcode is never changed: delete it and create another. " + Validation + " "
+            + "`REFERENCE_NOT_FOUND`: `articleId` names no article of this tenant; find one with `article_list`. `REFERENCE_INACTIVE`: the article is inactive. " + BarcodeTaken,
+            Input(["articleId", "barcode"],
+            [
+                ArticleIdOf("the barcode identifies"),
+                ("barcode", Text("The barcode as a scanner sends it: 1-50 printable ASCII characters, no spaces. Case-sensitive.")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<ArticleBarcodeOperations>().CreateAsync(input, ct)),
+
+        XerpTool.For<RecordIdInput, SalesRecordDeleted>("article_barcode_delete", ToolKind.Delete,
+            "Removes a barcode from its article; returns `{ \"deleted\": true }`. The article is not changed. `NOT_FOUND`: no such barcode record in this tenant.",
+            Input(["id"], IdOf("barcode record to delete")),
+            (services, input, ct) => services.GetRequiredService<ArticleBarcodeOperations>().DeleteAsync(input, ct)),
     ];
 }
