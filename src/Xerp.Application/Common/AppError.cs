@@ -27,6 +27,9 @@ public static class ErrorCodes
     public const string QuantityExceedsOrder = "QUANTITY_EXCEEDS_ORDER";
     public const string DefaultWarehouse = "DEFAULT_WAREHOUSE";
     public const string StockReserved = "STOCK_RESERVED";
+    public const string CodeChangeNotAllowed = "CODE_CHANGE_NOT_ALLOWED";
+    public const string NameTaken = "NAME_TAKEN";
+    public const string TaxIdTaken = "TAX_ID_TAKEN";
     public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
     public const string InternalError = "INTERNAL_ERROR";
 }
@@ -70,6 +73,32 @@ public sealed record AppError(
     public static AppError NotFound(string detail) => new(ErrorCodes.NotFound, detail);
 
     public static AppError CodeTaken(string detail) => new(ErrorCodes.CodeTaken, detail);
+
+    /// <summary>Spec 013, R9: a replace would change the code and the master's <c>codeChangeable</c> rule is false.</summary>
+    /// <param name="what">The record, with its article: <c>a partner</c>.</param>
+    public static AppError CodeChangeNotAllowed(string what, string storedCode, RuleDefinition rule) =>
+        new AppError(ErrorCodes.CodeChangeNotAllowed,
+            $"The code of {what} cannot be changed: this company's rule {rule.Key} is false. Send the stored code '{storedCode}'.",
+            new Dictionary<string, string[]> { ["code"] = [$"The code must stay '{storedCode}'."] })
+            .RefusedBy(rule, false);
+
+    /// <summary>
+    /// Spec 013, R12: another record of the same resource has this name and the master's <c>nameUnique</c> rule
+    /// is true. Only the value the caller sent is repeated, never the record that has it (S2).
+    /// </summary>
+    /// <param name="what">The other record, with its article: <c>partner</c> gives "Another partner".</param>
+    public static AppError NameTaken(string what, string name, RuleDefinition rule) =>
+        new AppError(ErrorCodes.NameTaken,
+            $"Another {what} already has the name '{name}': this company's rule {rule.Key} is true. Choose another name.",
+            new Dictionary<string, string[]> { ["name"] = [$"The name '{name}' is already used (names are compared case-insensitively)."] })
+            .RefusedBy(rule, true);
+
+    /// <summary>Spec 013, R15: as <see cref="NameTaken"/>, for the tax id of a partner.</summary>
+    public static AppError TaxIdTaken(string taxId, RuleDefinition rule) =>
+        new AppError(ErrorCodes.TaxIdTaken,
+            $"Another partner already has the tax id '{taxId}': this company's rule {rule.Key} is true. Find that partner with partner_list instead of creating a duplicate.",
+            new Dictionary<string, string[]> { ["taxId"] = [$"The tax id '{taxId}' is already used (tax ids are compared case-insensitively)."] })
+            .RefusedBy(rule, true);
 
     public static AppError InUse(string detail) => new(ErrorCodes.InUse, detail);
 

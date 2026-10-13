@@ -64,7 +64,8 @@ public static class FieldRules
     }
 
     /// <summary>The six address fields (R3-R5); each reports under its own name.</summary>
-    public static Address AddressOf(ValidationErrors errors, AddressInput input, bool replace)
+    /// <param name="required">The master's required-field rules (spec 013, R5): each address field has its own.</param>
+    public static Address AddressOf(ValidationErrors errors, AddressInput input, bool replace, RequiredFields required)
     {
         var line1 = OptionalText(errors, input, nameof(input.AddressLine1), input.AddressLine1, Address.LineMaxLength, replace);
         var line2 = OptionalText(errors, input, nameof(input.AddressLine2), input.AddressLine2, Address.LineMaxLength, replace);
@@ -81,6 +82,13 @@ public static class FieldRules
             errors.Add(field, $"{field} must be two upper-case letters (ISO 3166-1 alpha-2, for example \"HR\"), not a country name.");
             countryCode = null;
         }
+
+        required.Check(errors, "addressLine1", line1);
+        required.Check(errors, "addressLine2", line2);
+        required.Check(errors, "postalCode", postalCode);
+        required.Check(errors, "city", city);
+        required.Check(errors, "region", region);
+        required.Check(errors, field, countryCode);
         return Address.Create(line1, line2, postalCode, city, region, countryCode);
     }
 }

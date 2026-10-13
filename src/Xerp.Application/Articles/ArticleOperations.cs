@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Xerp.Application.Common;
 using Xerp.Application.Orders;
 using Xerp.Application.Ports;
+using Xerp.Domain.Rules;
 using Xerp.Domain.Catalog;
 using Xerp.Domain.Common;
 
@@ -13,7 +14,7 @@ namespace Xerp.Application.Articles;
 /// reference alike. Writes check in the order of ADR-0008, decision 7:
 /// validation -> addressed article -> base unit -> code uniqueness.
 /// </summary>
-public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock clock)
+public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock clock, IRules rules)
 {
     private const string BaseUnitField = "baseUnitId";
 
@@ -80,27 +81,43 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
         return row is null ? NotFound() : ToDto(row);
     }
 
+    /// <summary>
+    /// Order of checks (spec 013, R16): validation -> base unit -> CODE_TAKEN -> NAME_TAKEN. Under the tenant's
+    /// lock, as a replace: whether a name is unique is a tenant's rule that no unique index can hold (spec 013, R13).
+    /// </summary>
     public async Task<Result<ArticleDto>> CreateAsync(CreateArticleInput input, CancellationToken cancellationToken = default)
     {
-        var validated = ArticleValidation.Create(input);
+        // Read once, at the start: the whole write is judged by this one set (spec 013, R4).
+        var tenantRules = await rules.ReadAsync(cancellationToken);
+        var validated = ArticleValidation.Create(input, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
 
-        if (await CheckBaseUnitAsync(values.BaseUnitId, alreadyAssigned: false, cancellationToken) is { } referenceError)
-            return referenceError;
-        if (await CodeIsUsedAsync(values.Code, exceptId: null, cancellationToken))
-            return CodeTaken(values.Code);
+        return await db.SerializedPerTenantAsync<Result<ArticleDto>>(async ct =>
+        {
+            if (await CheckBaseUnitAsync(values.BaseUnitId, alreadyAssigned: false, ct) is { } referenceError)
+                return referenceError;
+            if (await CodeIsUsedAsync(values.Code, exceptId: null, ct))
+                return CodeTaken(values.Code);
+            if (await MasterWriteChecks.NameAsync(tenantRules, RuleRegistry.Article, db.Articles, "article", values.Name, ct) is { } nameTaken)
+                return nameTaken;
 
-        var article = Article.Create(
-            values.Code, values.Name, values.Description, values.Type, values.BaseUnitId, values.IsActive, clock.UtcNow, ActorKeyId());
-        db.Articles.Add(article);
-        return await SaveAndReadAsync(article, values, cancellationToken);
+            var article = Article.Create(
+                values.Code, values.Name, values.Description, values.Type, values.BaseUnitId, values.IsActive, clock.UtcNow, ActorKeyId());
+            db.Articles.Add(article);
+            return await SaveAndReadAsync(article, values, ct);
+        }, cancellationToken);
     }
 
+    /// <summary>
+    /// Order of checks (spec 013, R10, R16): validation -> exists -> frozen fields -> base unit -> code change ->
+    /// CODE_TAKEN -> NAME_TAKEN.
+    /// </summary>
     public async Task<Result<ArticleDto>> ReplaceAsync(Guid id, ReplaceArticleInput input, CancellationToken cancellationToken = default)
     {
-        var validated = ArticleValidation.Replace(input);
+        var tenantRules = await rules.ReadAsync(cancellationToken);
+        var validated = ArticleValidation.Replace(input, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
@@ -120,8 +137,13 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
             var keepsBaseUnit = article.BaseUnitId == values.BaseUnitId;
             if (await CheckBaseUnitAsync(values.BaseUnitId, keepsBaseUnit, ct) is { } referenceError)
                 return referenceError;
+            if (MasterWriteChecks.CodeChange(tenantRules, RuleRegistry.Article, "an article", article.Code, values.Code) is { } codeChange)
+                return codeChange;
             if (await CodeIsUsedAsync(values.Code, exceptId: id, ct))
                 return CodeTaken(values.Code);
+            var others = db.Articles.Where(a => a.Id != id);
+            if (await MasterWriteChecks.NameAsync(tenantRules, RuleRegistry.Article, others, "article", values.Name, ct) is { } nameTaken)
+                return nameTaken;
 
             article.Replace(
                 values.Code, values.Name, values.Description, values.Type, values.BaseUnitId, values.IsActive, clock.UtcNow, ActorKeyId());

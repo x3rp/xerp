@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Xerp.Application.Common;
 using Xerp.Application.Orders;
 using Xerp.Application.Ports;
+using Xerp.Domain.Rules;
 using Xerp.Domain.Common;
 using Xerp.Domain.Inventory;
 
@@ -19,7 +20,7 @@ namespace Xerp.Application.Warehouses;
 /// The rules themselves are <see cref="DefaultWarehouseRules"/>.
 /// </para>
 /// </summary>
-public sealed class WarehouseOperations(IXerpDb db, ITenantContext context, IClock clock)
+public sealed class WarehouseOperations(IXerpDb db, ITenantContext context, IClock clock, IRules rules)
 {
     public async Task<Result<PagedResult<WarehouseDto>>> ListAsync(ListWarehousesInput input, CancellationToken cancellationToken = default)
     {
@@ -68,56 +69,64 @@ public sealed class WarehouseOperations(IXerpDb db, ITenantContext context, IClo
         return warehouse is null ? NotFound() : ToDto(warehouse);
     }
 
+    /// <summary>
+    /// Order of checks (spec 013, R16): validation -> CODE_TAKEN -> NAME_TAKEN. Under the tenant's lock, as a
+    /// replace: whether a name is unique is a tenant's rule that no unique index can hold (spec 013, R13).
+    /// </summary>
     public async Task<Result<WarehouseDto>> CreateAsync(WarehouseInput input, CancellationToken cancellationToken = default)
     {
-        var validated = WarehouseValidation.Create(input);
+        // Read once, at the start: the whole write is judged by this one set (spec 013, R4).
+        var tenantRules = await rules.ReadAsync(cancellationToken);
+        var validated = WarehouseValidation.Create(input, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
 
-        if (await CodeIsUsedAsync(values.Code, exceptId: null, cancellationToken))
-            return CodeTaken(values.Code);
+        return await WriteAsync(values.Code, async ct =>
+        {
+            if (await CodeIsUsedAsync(values.Code, exceptId: null, ct))
+                return CodeTaken(values.Code);
+            if (await MasterWriteChecks.NameAsync(tenantRules, RuleRegistry.Warehouse, db.Warehouses, "warehouse", values.Name, ct) is { } nameTaken)
+                return nameTaken;
 
-        var warehouse = Warehouse.Create(values.Code, values.Name, values.Address, values.IsActive, clock.UtcNow, ActorKeyId());
-        db.Warehouses.Add(warehouse);
-        return await SaveAsync(warehouse, values.Code, cancellationToken);
+            var warehouse = Warehouse.Create(values.Code, values.Name, values.Address, values.IsActive, clock.UtcNow, ActorKeyId());
+            db.Warehouses.Add(warehouse);
+            await db.SaveChangesAsync(ct);
+            return ToDto(warehouse);
+        }, cancellationToken);
     }
 
-    /// <summary>Order of checks (spec 011, R4): validation -> exists -> DEFAULT_WAREHOUSE -> CODE_TAKEN.</summary>
+    /// <summary>
+    /// Order of checks (spec 011, R4; spec 013, R10, R16): validation -> exists -> DEFAULT_WAREHOUSE -> code
+    /// change -> CODE_TAKEN -> NAME_TAKEN.
+    /// </summary>
     public async Task<Result<WarehouseDto>> ReplaceAsync(Guid id, WarehouseInput input, CancellationToken cancellationToken = default)
     {
-        var validated = WarehouseValidation.Replace(input);
+        var tenantRules = await rules.ReadAsync(cancellationToken);
+        var validated = WarehouseValidation.Replace(input, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
 
-        try
+        return await WriteAsync(values.Code, async ct =>
         {
-            return await db.SerializedPerTenantAsync<Result<WarehouseDto>>(async ct =>
-            {
-                var warehouse = await db.Warehouses.SingleOrDefaultAsync(w => w.Id == id, ct);
-                if (warehouse is null)
-                    return NotFound();
-                if (DefaultWarehouseRules.Replace(warehouse.IsDefault, values.IsActive) is { } isDefault)
-                    return isDefault;
-                if (await CodeIsUsedAsync(values.Code, exceptId: id, ct))
-                    return CodeTaken(values.Code);
+            var warehouse = await db.Warehouses.SingleOrDefaultAsync(w => w.Id == id, ct);
+            if (warehouse is null)
+                return NotFound();
+            if (DefaultWarehouseRules.Replace(warehouse.IsDefault, values.IsActive) is { } isDefault)
+                return isDefault;
+            if (MasterWriteChecks.CodeChange(tenantRules, RuleRegistry.Warehouse, "a warehouse", warehouse.Code, values.Code) is { } codeChange)
+                return codeChange;
+            if (await CodeIsUsedAsync(values.Code, exceptId: id, ct))
+                return CodeTaken(values.Code);
+            var others = db.Warehouses.Where(w => w.Id != id);
+            if (await MasterWriteChecks.NameAsync(tenantRules, RuleRegistry.Warehouse, others, "warehouse", values.Name, ct) is { } nameTaken)
+                return nameTaken;
 
-                warehouse.Replace(values.Code, values.Name, values.Address, values.IsActive, clock.UtcNow, ActorKeyId());
-                await db.SaveChangesAsync(ct);
-                return ToDto(warehouse);
-            }, cancellationToken);
-        }
-        catch (UniqueConstraintViolationException ex) when (ex.IsCodeOf<Warehouse>())
-        {
-            // Lost a race with a concurrent create of the same code: the unique index is the authority.
-            return CodeTaken(values.Code);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Deleted by someone else between the read and the write.
-            return NotFound();
-        }
+            warehouse.Replace(values.Code, values.Name, values.Address, values.IsActive, clock.UtcNow, ActorKeyId());
+            await db.SaveChangesAsync(ct);
+            return ToDto(warehouse);
+        }, cancellationToken);
     }
 
     /// <summary>Order of checks (spec 011, R5): exists -> DEFAULT_WAREHOUSE -> IN_USE.</summary>
@@ -187,12 +196,13 @@ public sealed class WarehouseOperations(IXerpDb db, ITenantContext context, IClo
             ? Task.FromResult<Result<WarehouseDto>>(error)
             : SetDefaultAsync(parsed, cancellationToken);
 
-    /// <summary>Saves the tracked warehouse, translating what only the database can decide.</summary>
-    private async Task<Result<WarehouseDto>> SaveAsync(Warehouse warehouse, string code, CancellationToken cancellationToken)
+    /// <summary>Runs the checks and the write of a create or a replace under the tenant's lock, translating what only the database can decide.</summary>
+    private async Task<Result<WarehouseDto>> WriteAsync(
+        string code, Func<CancellationToken, Task<Result<WarehouseDto>>> work, CancellationToken cancellationToken)
     {
         try
         {
-            await db.SaveChangesAsync(cancellationToken);
+            return await db.SerializedPerTenantAsync(work, cancellationToken);
         }
         catch (UniqueConstraintViolationException ex) when (ex.IsCodeOf<Warehouse>())
         {
@@ -204,7 +214,6 @@ public sealed class WarehouseOperations(IXerpDb db, ITenantContext context, IClo
             // Deleted by someone else between the read and the write.
             return NotFound();
         }
-        return ToDto(warehouse);
     }
 
     private Task<bool> CodeIsUsedAsync(string code, Guid? exceptId, CancellationToken cancellationToken) =>

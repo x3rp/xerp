@@ -31,16 +31,41 @@ public class ConfigurableRuleTests
     // ---- the registry (R1, R4; ADR-0020, decision 2)
 
     [Fact]
-    public void R1_The_registry_has_exactly_the_six_rules_ordered_by_key_with_their_defaults()
+    public void R1_The_registry_has_exactly_the_thirty_rules_ordered_by_key_with_their_defaults()
     {
+        // Spec 013, R1 and AC-10: the six of spec 012 and the 24 of the masters.
         Assert.Equal(
             [
+                ("article.codeChangeable", true),
+                ("article.descriptionRequired", false),
+                ("article.nameUnique", false),
+                ("partner.addressLine1Required", false),
+                ("partner.addressLine2Required", false),
+                ("partner.cityRequired", false),
+                ("partner.codeChangeable", true),
+                ("partner.countryCodeRequired", false),
+                ("partner.nameUnique", false),
+                ("partner.postalCodeRequired", false),
+                ("partner.regionRequired", false),
+                ("partner.roleRequired", true),
+                ("partner.taxIdRequired", false),
+                ("partner.taxIdUnique", false),
                 ("purchase.overReceiptAllowed", false),
                 ("purchase.partnerRequired", true),
                 ("sales.overDeliveryAllowed", false),
                 ("sales.partnerRequired", true),
                 ("sales.reservedStockProtected", false),
                 ("stock.negativeStockAllowed", false),
+                ("uom.codeChangeable", true),
+                ("uom.nameUnique", false),
+                ("warehouse.addressLine1Required", false),
+                ("warehouse.addressLine2Required", false),
+                ("warehouse.cityRequired", false),
+                ("warehouse.codeChangeable", true),
+                ("warehouse.countryCodeRequired", false),
+                ("warehouse.nameUnique", false),
+                ("warehouse.postalCodeRequired", false),
+                ("warehouse.regionRequired", false),
             ],
             RuleRegistry.All.Select(r => (r.Key, r.Default)));
     }
@@ -50,7 +75,8 @@ public class ConfigurableRuleTests
     {
         foreach (var rule in RuleRegistry.All)
         {
-            Assert.Matches("^[a-z][A-Za-z]*\\.[a-z][A-Za-z]*$", rule.Key);
+            // lowerCamel; a segment may carry a digit (spec 013: partner.addressLine1Required).
+            Assert.Matches("^[a-z][A-Za-z0-9]*\\.[a-z][A-Za-z0-9]*$", rule.Key);
             Assert.True(rule.Key.Length <= RuleDefinition.KeyMaxLength);
             Assert.Equal(rule.Key.Split('.')[0], rule.Group);
             Assert.False(string.IsNullOrWhiteSpace(rule.Name));
@@ -70,7 +96,7 @@ public class ConfigurableRuleTests
     [InlineData(" stock.negativeStockAllowed")]
     [InlineData("stock.negativeStock")]
     [InlineData("quantity.decimals")]
-    [InlineData("partner.roleRequired")]
+    [InlineData("document.maxLines")]
     public void R4_Anything_that_is_not_exactly_a_key_of_the_registry_names_no_rule(string? key)
     {
         Assert.Null(RuleRegistry.Find(key));

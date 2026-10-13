@@ -116,9 +116,13 @@ public class AddressAndPartnerRulesTests
     }
 
     [Fact]
-    public void R15_A_partner_cannot_be_created_without_a_role()
+    public void R15_Whether_a_partner_without_a_role_is_saved_is_the_tenants_rule_not_the_entitys()
     {
-        Assert.Throws<ArgumentException>(() => Partner.Create("P1", "Acme", false, false, null, Address.Empty, true, T0, Actor));
+        // Spec 013, R8: partner.roleRequired decides, with the tenant's value; the entity holds either.
+        Assert.True(PartnerRules.RoleMissing(roleRequired: true, false, false));
+        Assert.False(PartnerRules.RoleMissing(roleRequired: false, false, false));
+        var partner = Partner.Create("P1", "Acme", false, false, null, Address.Empty, true, T0, Actor);
+        Assert.False(PartnerRules.HasRole(partner.IsCustomer, partner.IsSupplier));
     }
 
     [Fact]
@@ -165,7 +169,6 @@ public class AddressAndPartnerRulesTests
         Assert.Equal((T0, later, Actor, editor), (partner.CreatedAt, partner.UpdatedAt, partner.CreatedBy, partner.UpdatedBy));
 
         // A rejected replace leaves the partner untouched.
-        Assert.Throws<ArgumentException>(() => partner.Replace("P3", "Acme 3", false, false, null, Address.Empty, true, later, editor));
         Assert.Throws<ArgumentException>(() => partner.Replace("bad code", "Acme 3", true, true, null, Address.Empty, true, later, editor));
         Assert.Equal(("P2", "Acme 2", false), (partner.Code, partner.Name, partner.IsActive));
     }

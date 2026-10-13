@@ -21,11 +21,15 @@ public static class Rules
     public const string Protected = "sales.reservedStockProtected";
     public const string NegativeStock = "stock.negativeStockAllowed";
 
-    /// <summary>The six keys of the registry in the order of the list (R2: by key, ordinal).</summary>
+    /// <summary>The six keys of spec 012 in the order of the list (R2: by key, ordinal).</summary>
     public static readonly string[] Keys = [OverReceipt, PurchasePartner, OverDelivery, SalesPartner, Protected, NegativeStock];
 
-    /// <summary>The default of a rule (section 6.1): only the two partner rules are <c>true</c>.</summary>
-    public static bool Default(string key) => key is PurchasePartner or SalesPartner;
+    /// <summary>The whole registry since spec 013 (013/R1): the six of spec 012 and the 24 of the masters, by key, ordinal.</summary>
+    public static readonly string[] All = Keys.Concat(MasterRules.Keys).Order(StringComparer.Ordinal).ToArray();
+
+    /// <summary>The default of a rule (012 section 6.1, 013 section 6.1).</summary>
+    public static bool Default(string key) =>
+        key is PurchasePartner or SalesPartner or MasterRules.RoleRequired || key.EndsWith(".codeChangeable", StringComparison.Ordinal);
 
     /// <summary>The nine properties of a rule (section 4), sorted. There is no <c>type</c> and no <c>allowed</c>.</summary>
     public static readonly string[] Representation =

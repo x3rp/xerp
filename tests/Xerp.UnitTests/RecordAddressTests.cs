@@ -16,8 +16,8 @@ public class RecordAddressTests
     private sealed record Actor(Guid? TenantId, Guid? ApiKeyId) : ITenantContext;
 
     private static readonly Actor Me = new(Guid.CreateVersion7(), Guid.CreateVersion7());
-    private static readonly UnitOfMeasureOperations Units = new(null!, Me, null!);
-    private static readonly ArticleOperations Articles = new(null!, Me, null!);
+    private static readonly UnitOfMeasureOperations Units = new(null!, Me, null!, null!);
+    private static readonly ArticleOperations Articles = new(null!, Me, null!, null!);
     private static readonly ApiKeyOperations Keys = new(null!, Me, null!, null!, null!);
     private static readonly ArticleUnitOperations ArticleUnits = new(null!, Me, null!);
 

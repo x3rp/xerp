@@ -104,7 +104,7 @@ public class RuleSetResetHistoryTests(XerpFixture app)
     [InlineData("nope")]
     [InlineData("Stock.NegativeStockAllowed")]
     [InlineData("stock.negativeStock")]
-    [InlineData("partner.roleRequired")]
+    [InlineData("document.maxLines")]
     public async Task AC32_The_form_of_the_body_is_checked_before_the_key_and_the_key_before_the_value(string unknownKey)
     {
         var tenant = await app.NewTenantAsync();

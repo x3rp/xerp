@@ -7,8 +7,14 @@ public static class PartnerRules
 {
     public const int TaxIdMaxLength = 50;
 
-    /// <summary>A partner is a customer, a supplier or both; never neither (ADR-0011, decision 1).</summary>
+    /// <summary>A partner is a customer, a supplier or both (ADR-0011, decision 1); whether one with neither may be saved is <see cref="RoleMissing"/>.</summary>
     public static bool HasRole(bool isCustomer, bool isSupplier) => isCustomer || isSupplier;
+
+    /// <summary>
+    /// Spec 013, R8: with <c>partner.roleRequired</c> true a partner without a role is refused; with false it
+    /// may be saved, and is still no supplier and no customer where a document needs one.
+    /// </summary>
+    public static bool RoleMissing(bool roleRequired, bool isCustomer, bool isSupplier) => roleRequired && !HasRole(isCustomer, isSupplier);
 }
 
 /// <summary>A company or person the tenant sells to (customer), buys from (supplier), or both.</summary>
@@ -53,8 +59,8 @@ public sealed class Partner : ITenantOwned
         var newCode = CodeRules.Normalize(code, nameof(code));
         var newName = NameRules.Normalize(name, nameof(name));
         var newTaxId = OptionalTextRules.Normalize(taxId, PartnerRules.TaxIdMaxLength, nameof(taxId));
-        if (!PartnerRules.HasRole(isCustomer, isSupplier))
-            throw new ArgumentException("A partner must be a customer, a supplier or both.", nameof(isCustomer));
+        // Whether a partner needs a role is the tenant's rule partner.roleRequired (spec 013, R8), judged in
+        // validation with the tenant's value: the entity holds what a tenant with the rule false may save.
         Code = newCode;
         Name = newName;
         IsCustomer = isCustomer;
