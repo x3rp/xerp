@@ -25,6 +25,17 @@ public static class ToolCatalog
     private const string Validation = "`VALIDATION_FAILED`: an argument is missing, unknown or invalid; `errors` names each offending argument - correct them and call again.";
     private const string CodeTaken = "`CODE_TAKEN`: another record already has this code (codes are case-insensitive) - choose another code.";
 
+    // Spec 013, section 5: what the rules of the masters can add to a create or an update tool.
+    private const string NameTaken = "`NAME_TAKEN`: this company's rule makes names unique and another record has this name (names are case-insensitive) - choose another name.";
+    private const string CodeChangeNotAllowed = "`CODE_CHANGE_NOT_ALLOWED`: this company's rule forbids changing the code - send the stored code.";
+    private const string TaxIdTaken = "`TAX_ID_TAKEN`: this company's rule makes tax ids unique and another partner has this one - find that partner with `partner_list`.";
+
+    /// <summary>Appended to the description of the create and the update tool of a master (spec 013, section 5).</summary>
+    /// <param name="group">The group of the master's rules: <c>uom</c>, <c>article</c>, <c>partner</c> or <c>warehouse</c>.</param>
+    private static string MasterRules(string group, bool update, bool partner = false) =>
+        " " + (update ? CodeChangeNotAllowed + " " : "") + NameTaken + (partner ? " " + TaxIdTaken : "")
+        + $" This company's rules can make optional fields required and names unique (`rule_list` with `group` = `{group}`); a refusal's `rules` names the rule that refused.";
+
     private static readonly (string, System.Text.Json.Nodes.JsonObject)[] Paging =
     [
         ("limit", Integer("Maximum number of items to return; default 50.", 1, ListRules.MaxLimit)),
@@ -272,13 +283,13 @@ public static class ToolCatalog
             (services, input, ct) => services.GetRequiredService<UnitOfMeasureOperations>().FindAsync(input, ct)),
 
         XerpTool.For<CreateUnitOfMeasureInput, UnitOfMeasureDto>("uom_create", ToolKind.Create,
-            "Creates a unit of measure (for example `kg`, `pcs`) and returns it with its `id`. " + Validation + " " + CodeTaken,
+            "Creates a unit of measure (for example `kg`, `pcs`) and returns it with its `id`. " + Validation + " " + CodeTaken + MasterRules("uom", update: false),
             Input(["code", "name"], UnitFields(isActiveRequired: false)),
             (services, input, ct) => services.GetRequiredService<UnitOfMeasureOperations>().CreateAsync(input, ct)),
 
         XerpTool.WithId<ReplaceUnitOfMeasureInput, UnitOfMeasureDto>("uom_update", ToolKind.Update,
             "Replaces all fields of a unit of measure; every argument is required. Set `isActive` to false to retire a unit that is in use. "
-            + Validation + " `NOT_FOUND`: no such unit in this tenant. " + CodeTaken,
+            + Validation + " `NOT_FOUND`: no such unit in this tenant. " + CodeTaken + MasterRules("uom", update: true),
             Input(["id", "code", "name", "isActive"], [IdOf("unit of measure to replace"), .. UnitFields(isActiveRequired: true)]),
             (services, id, input, ct) => services.GetRequiredService<UnitOfMeasureOperations>().ReplaceAsync(id, input, ct)),
 
@@ -313,7 +324,7 @@ public static class ToolCatalog
         XerpTool.For<CreateArticleInput, ArticleDto>("article_create", ToolKind.Create,
             "Creates an article (an item or a service) and returns it with its `id`. " + Validation + " "
             + "`REFERENCE_NOT_FOUND`: `baseUnitId` names no unit of this tenant; find one with `uom_list`. "
-            + "`REFERENCE_INACTIVE`: that unit is inactive; choose an active unit. " + CodeTaken,
+            + "`REFERENCE_INACTIVE`: that unit is inactive; choose an active unit. " + CodeTaken + MasterRules("article", update: false),
             Input(["code", "name", "type", "baseUnitId"], ArticleFields(update: false)),
             (services, input, ct) => services.GetRequiredService<ArticleOperations>().CreateAsync(input, ct)),
 
@@ -323,7 +334,7 @@ public static class ToolCatalog
             + "`REFERENCE_INACTIVE`: the unit is inactive and the article did not already use it. "
             + "`IN_USE`: stock documents, purchase orders or sales orders use the article, so `type` and `baseUnitId` cannot change, or the article has unit conversions, "
             + "so `baseUnitId` cannot change (`errors` names which); keep the values. To change the base unit of an article no stock document uses, "
-            + "delete its conversions with `article_unit_delete` first and set them again afterwards. " + CodeTaken,
+            + "delete its conversions with `article_unit_delete` first and set them again afterwards. " + CodeTaken + MasterRules("article", update: true),
             Input(["id", "code", "name", "description", "type", "baseUnitId", "isActive"],
                 [IdOf("article to replace"), .. ArticleFields(update: true)]),
             (services, id, input, ct) => services.GetRequiredService<ArticleOperations>().ReplaceAsync(id, input, ct)),
@@ -401,16 +412,16 @@ public static class ToolCatalog
 
         XerpTool.For<PartnerInput, PartnerDto>("partner_create", ToolKind.Create,
             "Creates a partner (a company or person the tenant sells to, buys from, or both) and returns it with its `id`. "
-            + "At least one of `isCustomer`, `isSupplier` must be true. `taxId` is not unique: two partners may have the same one, "
+            + "At least one of `isCustomer`, `isSupplier` must be true, unless this company's rule `partner.roleRequired` is false. By default `taxId` is not unique: two partners may have the same one, "
             + "so search with `partner_list` first (by name or tax id) to avoid creating a duplicate partner. "
-            + Validation + " " + CodeTaken,
+            + Validation + " " + CodeTaken + MasterRules("partner", update: false, partner: true),
             Input(["code", "name"], PartnerFields(update: false)),
             (services, input, ct) => services.GetRequiredService<PartnerOperations>().CreateAsync(input, ct)),
 
         XerpTool.WithId<PartnerInput, PartnerDto>("partner_update", ToolKind.Update,
             "Replaces all fields of a partner; every argument is required (`taxId` and the address arguments may be null, which clears them). "
-            + "At least one of `isCustomer`, `isSupplier` must stay true. Set `isActive` to false to retire a partner. "
-            + Validation + " `NOT_FOUND`: no such partner in this tenant. " + CodeTaken,
+            + "At least one of `isCustomer`, `isSupplier` must stay true, unless this company's rule `partner.roleRequired` is false. Set `isActive` to false to retire a partner. "
+            + Validation + " `NOT_FOUND`: no such partner in this tenant. " + CodeTaken + MasterRules("partner", update: true, partner: true),
             Input(["id", "code", "name", "isCustomer", "isSupplier", "taxId", .. AddressNames, "isActive"],
                 [IdOf("partner to replace"), .. PartnerFields(update: true)]),
             (services, id, input, ct) => services.GetRequiredService<PartnerOperations>().ReplaceAsync(id, input, ct)),
@@ -441,7 +452,7 @@ public static class ToolCatalog
             (services, input, ct) => services.GetRequiredService<WarehouseOperations>().FindAsync(input, ct)),
 
         XerpTool.For<WarehouseInput, WarehouseDto>("warehouse_create", ToolKind.Create,
-            "Creates a warehouse (a place where stock is kept) and returns it with its `id`. " + Validation + " " + CodeTaken,
+            "Creates a warehouse (a place where stock is kept) and returns it with its `id`. " + Validation + " " + CodeTaken + MasterRules("warehouse", update: false),
             Input(["code", "name"], WarehouseFields(update: false)),
             (services, input, ct) => services.GetRequiredService<WarehouseOperations>().CreateAsync(input, ct)),
 
@@ -450,7 +461,7 @@ public static class ToolCatalog
             + "Set `isActive` to false to retire a warehouse. `isDefault` is not an argument: the default is changed with `warehouse_set_default`. "
             + Validation + " `NOT_FOUND`: no such warehouse in this tenant. "
             + "`DEFAULT_WAREHOUSE`: `isActive` false was sent for the tenant's default warehouse, which must stay active (`errors` names `isActive`); "
-            + "make another warehouse the default first with `warehouse_set_default`, then deactivate this one. " + CodeTaken,
+            + "make another warehouse the default first with `warehouse_set_default`, then deactivate this one. " + CodeTaken + MasterRules("warehouse", update: true),
             Input(["id", "code", "name", .. AddressNames, "isActive"], [IdOf("warehouse to replace"), .. WarehouseFields(update: true)]),
             (services, id, input, ct) => services.GetRequiredService<WarehouseOperations>().ReplaceAsync(id, input, ct)),
 

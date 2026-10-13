@@ -9,6 +9,12 @@ public static class PartnerRules
 
     /// <summary>A partner is a customer, a supplier or both; never neither (ADR-0011, decision 1).</summary>
     public static bool HasRole(bool isCustomer, bool isSupplier) => isCustomer || isSupplier;
+
+    /// <summary>
+    /// Spec 013, R8: with <c>partner.roleRequired</c> true a partner without a role is refused; with false it
+    /// may be saved, and is still no supplier and no customer where a document needs one.
+    /// </summary>
+    public static bool RoleMissing(bool roleRequired, bool isCustomer, bool isSupplier) => roleRequired && !HasRole(isCustomer, isSupplier);
 }
 
 /// <summary>A company or person the tenant sells to (customer), buys from (supplier), or both.</summary>

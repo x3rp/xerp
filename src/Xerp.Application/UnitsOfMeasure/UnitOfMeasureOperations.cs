@@ -4,6 +4,7 @@ using Xerp.Application.Orders;
 using Xerp.Application.Ports;
 using Xerp.Domain.Common;
 using Xerp.Domain.Inventory;
+using Xerp.Domain.Rules;
 
 namespace Xerp.Application.UnitsOfMeasure;
 
@@ -11,8 +12,14 @@ namespace Xerp.Application.UnitsOfMeasure;
 /// The unit-of-measure operations of spec 001, 4.3. One method = one HTTP endpoint = one MCP tool.
 /// <see cref="IXerpDb"/> is already filtered to the current tenant, so a unit of another tenant is
 /// simply not found here.
+/// <para>
+/// A create and a replace read the tenant's rules once, at their start, and are judged by that one set (spec
+/// 013, R4). What follows validation runs under <see cref="IXerpDb.SerializedPerTenantAsync{T}"/>: whether a
+/// name is unique is a tenant's rule and no unique index can hold it, so the lookup and the write must not be
+/// overtaken by another write of the tenant (R13).
+/// </para>
 /// </summary>
-public sealed class UnitOfMeasureOperations(IXerpDb db, ITenantContext context, IClock clock)
+public sealed class UnitOfMeasureOperations(IXerpDb db, ITenantContext context, IClock clock, IRules rules)
 {
     public async Task<Result<PagedResult<UnitOfMeasureDto>>> ListAsync(
         ListUnitsOfMeasureInput input, CancellationToken cancellationToken = default)
@@ -63,57 +70,75 @@ public sealed class UnitOfMeasureOperations(IXerpDb db, ITenantContext context, 
     public async Task<Result<UnitOfMeasureDto>> CreateAsync(
         CreateUnitOfMeasureInput input, CancellationToken cancellationToken = default)
     {
+        var tenantRules = await rules.ReadAsync(cancellationToken);
         var validated = UnitOfMeasureValidation.Create(input);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
 
-        if (await CodeIsUsedAsync(values.Code, exceptId: null, cancellationToken))
-            return CodeTaken(values.Code);
+        return await WriteAsync(values.Code, async ct =>
+        {
+            if (await CodeIsUsedAsync(values.Code, exceptId: null, ct))
+                return CodeTaken(values.Code);
+            if (await MasterWriteChecks.NameAsync(tenantRules, RuleRegistry.Uom, db.UnitsOfMeasure, UnitWord, values.Name, ct) is { } nameTaken)
+                return nameTaken;
 
-        var unit = UnitOfMeasure.Create(values.Code, values.Name, values.IsActive, clock.UtcNow, ActorKeyId());
-        db.UnitsOfMeasure.Add(unit);
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (UniqueConstraintViolationException ex) when (ex.IsCodeOf<UnitOfMeasure>())
-        {
-            // Lost a race with a concurrent create of the same code: the unique index is the authority (E8).
-            return CodeTaken(values.Code);
-        }
-        return ToDto(unit);
+            var unit = UnitOfMeasure.Create(values.Code, values.Name, values.IsActive, clock.UtcNow, ActorKeyId());
+            db.UnitsOfMeasure.Add(unit);
+            await db.SaveChangesAsync(ct);
+            return ToDto(unit);
+        }, cancellationToken);
     }
 
+    /// <summary>Order of checks (spec 013, R10, R16): validation -> exists -> code change -> CODE_TAKEN -> NAME_TAKEN.</summary>
     public async Task<Result<UnitOfMeasureDto>> ReplaceAsync(
         Guid id, ReplaceUnitOfMeasureInput input, CancellationToken cancellationToken = default)
     {
+        var tenantRules = await rules.ReadAsync(cancellationToken);
         var validated = UnitOfMeasureValidation.Replace(input);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
 
-        var unit = await db.UnitsOfMeasure.SingleOrDefaultAsync(u => u.Id == id, cancellationToken);
-        if (unit is null)
-            return NotFound();
-        if (await CodeIsUsedAsync(values.Code, exceptId: id, cancellationToken))
-            return CodeTaken(values.Code);
+        return await WriteAsync(values.Code, async ct =>
+        {
+            var unit = await db.UnitsOfMeasure.SingleOrDefaultAsync(u => u.Id == id, ct);
+            if (unit is null)
+                return NotFound();
+            if (MasterWriteChecks.CodeChange(tenantRules, RuleRegistry.Uom, "a unit of measure", unit.Code, values.Code) is { } codeChange)
+                return codeChange;
+            if (await CodeIsUsedAsync(values.Code, exceptId: id, ct))
+                return CodeTaken(values.Code);
+            var others = db.UnitsOfMeasure.Where(u => u.Id != id);
+            if (await MasterWriteChecks.NameAsync(tenantRules, RuleRegistry.Uom, others, UnitWord, values.Name, ct) is { } nameTaken)
+                return nameTaken;
 
-        unit.Replace(values.Code, values.Name, values.IsActive, clock.UtcNow, ActorKeyId());
+            unit.Replace(values.Code, values.Name, values.IsActive, clock.UtcNow, ActorKeyId());
+            await db.SaveChangesAsync(ct);
+            return ToDto(unit);
+        }, cancellationToken);
+    }
+
+    private const string UnitWord = "unit of measure";
+
+    /// <summary>Runs the checks and the write of a create or a replace under the tenant's lock, translating what only the database can decide.</summary>
+    private async Task<Result<UnitOfMeasureDto>> WriteAsync(
+        string code, Func<CancellationToken, Task<Result<UnitOfMeasureDto>>> work, CancellationToken cancellationToken)
+    {
         try
         {
-            await db.SaveChangesAsync(cancellationToken);
+            return await db.SerializedPerTenantAsync(work, cancellationToken);
         }
         catch (UniqueConstraintViolationException ex) when (ex.IsCodeOf<UnitOfMeasure>())
         {
-            return CodeTaken(values.Code);
+            // Lost a race with a concurrent write of the same code: the unique index is the authority (E8).
+            return CodeTaken(code);
         }
         catch (DbUpdateConcurrencyException)
         {
             // Deleted by someone else between the read and the write.
             return NotFound();
         }
-        return ToDto(unit);
     }
 
     public async Task<Result<UnitOfMeasureDeleted>> DeleteAsync(Guid id, CancellationToken cancellationToken = default)

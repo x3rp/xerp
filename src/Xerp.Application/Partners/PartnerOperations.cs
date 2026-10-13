@@ -4,15 +4,23 @@ using Xerp.Application.Orders;
 using Xerp.Application.Ports;
 using Xerp.Domain.Common;
 using Xerp.Domain.Partners;
+using Xerp.Domain.Rules;
 
 namespace Xerp.Application.Partners;
 
 /// <summary>
 /// The partner operations of spec 004, section 4. One method = one HTTP endpoint = one MCP tool.
 /// <see cref="IXerpDb"/> is already filtered to the current tenant, so a partner of another tenant is
-/// simply not found here. Writes check in the order of R11: validation -> addressed partner -> code uniqueness.
+/// simply not found here. Writes check in the order of R11 and of spec 013, R10 and R16: validation ->
+/// addressed partner -> code change -> code uniqueness -> name uniqueness -> tax id uniqueness.
+/// <para>
+/// A create and a replace read the tenant's rules once, at their start, and are judged by that one set (spec
+/// 013, R4). What follows validation runs under <see cref="IXerpDb.SerializedPerTenantAsync{T}"/>: whether a
+/// name or a tax id is unique is a tenant's rule and no unique index can hold it, so the lookup and the write
+/// must not be overtaken by another write of the tenant (R13).
+/// </para>
 /// </summary>
-public sealed class PartnerOperations(IXerpDb db, ITenantContext context, IClock clock)
+public sealed class PartnerOperations(IXerpDb db, ITenantContext context, IClock clock, IRules rules)
 {
     public async Task<Result<PagedResult<PartnerDto>>> ListAsync(ListPartnersInput input, CancellationToken cancellationToken = default)
     {
@@ -67,39 +75,72 @@ public sealed class PartnerOperations(IXerpDb db, ITenantContext context, IClock
 
     public async Task<Result<PartnerDto>> CreateAsync(PartnerInput input, CancellationToken cancellationToken = default)
     {
-        var validated = PartnerValidation.Create(input);
+        var tenantRules = await rules.ReadAsync(cancellationToken);
+        var validated = PartnerValidation.Create(input, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
 
-        if (await CodeIsUsedAsync(values.Code, exceptId: null, cancellationToken))
-            return CodeTaken(values.Code);
+        return await WriteAsync(values.Code, async ct =>
+        {
+            if (await CodeIsUsedAsync(values.Code, exceptId: null, ct))
+                return CodeTaken(values.Code);
+            if (await CheckUniqueAsync(tenantRules, values, exceptId: null, ct) is { } taken)
+                return taken;
 
-        // The tax id is deliberately not checked for duplicates (ADR-0011, decision 6).
-        var partner = Partner.Create(
-            values.Code, values.Name, values.IsCustomer, values.IsSupplier, values.TaxId, values.Address, values.IsActive,
-            clock.UtcNow, ActorKeyId());
-        db.Partners.Add(partner);
-        return await SaveAsync(partner, values.Code, cancellationToken);
+            var partner = Partner.Create(
+                values.Code, values.Name, values.IsCustomer, values.IsSupplier, values.TaxId, values.Address, values.IsActive,
+                clock.UtcNow, ActorKeyId());
+            db.Partners.Add(partner);
+            await db.SaveChangesAsync(ct);
+            return ToDto(partner);
+        }, cancellationToken);
     }
 
     public async Task<Result<PartnerDto>> ReplaceAsync(Guid id, PartnerInput input, CancellationToken cancellationToken = default)
     {
-        var validated = PartnerValidation.Replace(input);
+        var tenantRules = await rules.ReadAsync(cancellationToken);
+        var validated = PartnerValidation.Replace(input, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
 
-        var partner = await db.Partners.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
-        if (partner is null)
-            return NotFound();
-        if (await CodeIsUsedAsync(values.Code, exceptId: id, cancellationToken))
-            return CodeTaken(values.Code);
+        return await WriteAsync(values.Code, async ct =>
+        {
+            var partner = await db.Partners.SingleOrDefaultAsync(p => p.Id == id, ct);
+            if (partner is null)
+                return NotFound();
+            if (MasterWriteChecks.CodeChange(tenantRules, RuleRegistry.Partner, "a partner", partner.Code, values.Code) is { } codeChange)
+                return codeChange;
+            if (await CodeIsUsedAsync(values.Code, exceptId: id, ct))
+                return CodeTaken(values.Code);
+            if (await CheckUniqueAsync(tenantRules, values, exceptId: id, ct) is { } taken)
+                return taken;
 
-        partner.Replace(
-            values.Code, values.Name, values.IsCustomer, values.IsSupplier, values.TaxId, values.Address, values.IsActive,
-            clock.UtcNow, ActorKeyId());
-        return await SaveAsync(partner, values.Code, cancellationToken);
+            partner.Replace(
+                values.Code, values.Name, values.IsCustomer, values.IsSupplier, values.TaxId, values.Address, values.IsActive,
+                clock.UtcNow, ActorKeyId());
+            await db.SaveChangesAsync(ct);
+            return ToDto(partner);
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Spec 013, R12-R16: <c>NAME_TAKEN</c>, then <c>TAX_ID_TAKEN</c>; each answers alone. The record being
+    /// replaced never collides with itself, and partners without a tax id never collide.
+    /// </summary>
+    private async Task<AppError?> CheckUniqueAsync(TenantRules tenantRules, PartnerValues values, Guid? exceptId, CancellationToken cancellationToken)
+    {
+        var others = db.Partners.Where(p => exceptId == null || p.Id != exceptId);
+        if (await MasterWriteChecks.NameAsync(tenantRules, RuleRegistry.Partner, others, "partner", values.Name, cancellationToken) is { } nameTaken)
+            return nameTaken;
+
+        // With the rule false nothing is looked up: the tax id is not unique, as before spec 013 (ADR-0011, decision 6).
+        var taxIdUnique = tenantRules[RuleRegistry.PartnerTaxIdUnique];
+        if (!taxIdUnique || values.TaxId is not { } taxId)
+            return null;
+        var taken = await others.AnyAsync(p => p.TaxId != null && DbText.Lower(p.TaxId) == DbText.Lower(taxId), cancellationToken);
+        return MasterDataRules.Taken(taxIdUnique, taken) ? AppError.TaxIdTaken(taxId, RuleRegistry.PartnerTaxIdUnique) : null;
     }
 
     public async Task<Result<PartnerDeleted>> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -129,12 +170,13 @@ public sealed class PartnerOperations(IXerpDb db, ITenantContext context, IClock
         return new PartnerDeleted();
     }
 
-    /// <summary>Saves the tracked partner, translating what only the database can decide.</summary>
-    private async Task<Result<PartnerDto>> SaveAsync(Partner partner, string code, CancellationToken cancellationToken)
+    /// <summary>Runs the checks and the write of a create or a replace under the tenant's lock, translating what only the database can decide.</summary>
+    private async Task<Result<PartnerDto>> WriteAsync(
+        string code, Func<CancellationToken, Task<Result<PartnerDto>>> work, CancellationToken cancellationToken)
     {
         try
         {
-            await db.SaveChangesAsync(cancellationToken);
+            return await db.SerializedPerTenantAsync(work, cancellationToken);
         }
         catch (UniqueConstraintViolationException ex) when (ex.IsCodeOf<Partner>())
         {
@@ -146,7 +188,6 @@ public sealed class PartnerOperations(IXerpDb db, ITenantContext context, IClock
             // Deleted by someone else between the read and the write.
             return NotFound();
         }
-        return ToDto(partner);
     }
 
     private Task<bool> CodeIsUsedAsync(string code, Guid? exceptId, CancellationToken cancellationToken) =>

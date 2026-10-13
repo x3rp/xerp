@@ -12,6 +12,9 @@ public static class DbNames
     /// </summary>
     public const string CodeLower = "CodeLower";
 
+    /// <summary>The property every master has: its name, compared in lower case where names must be unique (spec 013, R12).</summary>
+    public const string Name = "Name";
+
     public const string TenantCodeIndex = "IX_Tenants_CodeLower";
     public const string UnitOfMeasureCodeIndex = "IX_UnitsOfMeasure_TenantId_CodeLower";
     public const string ArticleCodeIndex = "IX_Articles_TenantId_CodeLower";

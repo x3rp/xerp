@@ -77,14 +77,107 @@ public static class RuleRegistry
         + "Orders that already exist are not judged again: an order without a customer is confirmed, delivered against, closed and reopened whatever the value.",
         Default: true);
 
+    /// <summary>The master-data rules of units of measure (spec 013, 6.1).</summary>
+    public static readonly MasterRuleSet Uom = Master("uom", "unit of measure", "units of measure", "uom");
+
+    /// <summary>The master-data rules of articles (spec 013, 6.1).</summary>
+    public static readonly MasterRuleSet Article = Master("article", "article", "articles", "article",
+        ("description", "Description"));
+
+    /// <summary>The master-data rules of partners (spec 013, 6.1), without the two only a partner has.</summary>
+    public static readonly MasterRuleSet Partner = Master("partner", "partner", "partners", "partner",
+        [("taxId", "Tax id"), .. AddressFields]);
+
+    /// <summary>The master-data rules of warehouses (spec 013, 6.1).</summary>
+    public static readonly MasterRuleSet Warehouse = Master("warehouse", "warehouse", "warehouses", "warehouse", AddressFields);
+
+    public static readonly RuleDefinition PartnerRoleRequired = new(
+        "partner.roleRequired",
+        "A partner must be a customer or a supplier",
+        "Judges creating and replacing a partner (partner_create, partner_update). "
+        + "When true, a partner with isCustomer false and isSupplier false is refused with VALIDATION_FAILED: a partner is a customer, a supplier or both. "
+        + "When false, a partner with neither role may be saved; it still cannot be named where a supplier or a customer is needed (PARTNER_ROLE_MISSING). "
+        + "Partners that already exist are not judged again: after a change back to true a partner without a role stays and is read as before, and its next replace must give it a role.",
+        Default: true);
+
+    public static readonly RuleDefinition PartnerTaxIdUnique = new(
+        "partner.taxIdUnique",
+        "Tax ids of partners must be unique",
+        "Judges creating and replacing a partner (partner_create, partner_update). "
+        + "When false, any number of partners may have the same tax id. "
+        + "When true, a create or a replace whose taxId another partner already has is refused with TAX_ID_TAKEN; tax ids are compared trimmed and case-insensitively, inactive partners count, and partners without a tax id never collide. "
+        + "Duplicates that already exist stay; each is judged at its own next replace, which is refused until one of the two has another tax id.",
+        Default: false);
+
+    /// <summary>The four masters, each with its rules.</summary>
+    public static IReadOnlyList<MasterRuleSet> Masters { get; } = [Uom, Article, Partner, Warehouse];
+
     /// <summary>Every rule, ordered by key (ordinal): the order of every listing (spec 012, R2).</summary>
-    public static IReadOnlyList<RuleDefinition> All { get; } = new[]
-        {
+    public static IReadOnlyList<RuleDefinition> All { get; } = ((RuleDefinition[])
+        [
             NegativeStockAllowed, OverReceiptAllowed, OverDeliveryAllowed, ReservedStockProtected, PurchasePartnerRequired, SalesPartnerRequired,
-        }
+            PartnerRoleRequired, PartnerTaxIdUnique, .. Masters.SelectMany(m => m.All),
+        ])
         .OrderBy(r => r.Key, StringComparer.Ordinal)
         .ToList();
 
     /// <summary>The rule with exactly this key (case-sensitive), or null: anything else names no rule (spec 012, R4).</summary>
     public static RuleDefinition? Find(string? key) => All.FirstOrDefault(r => string.Equals(r.Key, key, StringComparison.Ordinal));
+
+    /// <summary>The six address fields a partner and a warehouse share, as requests spell them, with the words of their rules' names.</summary>
+    private static (string Field, string Label)[] AddressFields =>
+    [
+        ("addressLine1", "Address line 1"), ("addressLine2", "Address line 2"), ("postalCode", "Postal code"),
+        ("city", "City"), ("region", "Region"), ("countryCode", "Country code"),
+    ];
+
+    /// <summary>
+    /// The rules of one master (spec 013, 6.1): whether its code may change, whether its names are unique, and
+    /// one rule per optional field that a tenant may require. Every default is the behaviour of specs 001-004.
+    /// </summary>
+    /// <param name="tool">The prefix of the master's tools: <c>partner</c> for <c>partner_create</c> and <c>partner_update</c>.</param>
+    private static MasterRuleSet Master(string group, string singular, string plural, string tool, params (string Field, string Label)[] optionalFields)
+    {
+        var writes = $"Judges creating and replacing {WithArticle(singular)} ({tool}_create, {tool}_update). ";
+        var codeChangeable = new RuleDefinition(
+            $"{group}.codeChangeable",
+            $"The code of {WithArticle(singular)} may be changed",
+            $"Judges replacing {WithArticle(singular)} ({tool}_update); a create is never judged. "
+            + $"When true, a replace may give the {singular} another code. "
+            + "When false, a replace whose code differs from the stored code is refused with CODE_CHANGE_NOT_ALLOWED; a change of letter case only is a change, and a replace that sends the stored code passes. "
+            + "Codes that were changed earlier stay as they are.",
+            Default: true);
+        var nameUnique = new RuleDefinition(
+            $"{group}.nameUnique",
+            $"Names of {plural} must be unique",
+            writes
+            + $"When false, any number of {plural} may have the same name. "
+            + $"When true, a create or a replace whose name another {singular} already has is refused with NAME_TAKEN; names are compared trimmed and case-insensitively, and inactive {plural} count. "
+            + "Duplicates that already exist stay; each is judged at its own next replace, which is refused until one of the two is renamed.",
+            Default: false);
+        var required = optionalFields.ToDictionary(
+            f => f.Field,
+            f => new RuleDefinition(
+                $"{group}.{f.Field}Required",
+                $"{f.Label} required on {WithArticle(singular)}",
+                writes
+                + $"When false, {f.Field} is optional. "
+                + $"When true, {WithArticle(singular)} saved with {f.Field} omitted, null or empty is refused with VALIDATION_FAILED. "
+                + $"Records without it that already exist stay valid and usable; the next replace of one must give it.",
+                Default: false),
+            StringComparer.Ordinal);
+        return new MasterRuleSet(codeChangeable, nameUnique, required);
+    }
+
+    private static string WithArticle(string noun) => (noun[0] is 'a' or 'e' or 'i' or 'o' ? "an " : "a ") + noun;
+}
+
+/// <summary>The rules every master has (spec 013, 6.1), so that the four masters are judged by the same code.</summary>
+/// <param name="CodeChangeable">Whether a replace may change the record's code (R9).</param>
+/// <param name="NameUnique">Whether no two records of the resource may have the same name (R12).</param>
+/// <param name="RequiredFields">By request field, the rule that makes that optional field required (R5): a table, not a branch per field.</param>
+public sealed record MasterRuleSet(
+    RuleDefinition CodeChangeable, RuleDefinition NameUnique, IReadOnlyDictionary<string, RuleDefinition> RequiredFields)
+{
+    public IEnumerable<RuleDefinition> All => [CodeChangeable, NameUnique, .. RequiredFields.Values];
 }
