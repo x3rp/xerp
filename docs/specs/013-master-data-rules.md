@@ -280,7 +280,11 @@ Structure
   4. tests pinning the error-code list in the description of a create or update tool of the four masters
      (they gain the codes of section 5);
   5. a test whose expected result of `GET /rules?search=…` or `rule_list` without `group` now also matches
-     one of the 24 new keys or names: the expected list grows by exactly those.
+     one of the 24 new keys or names: the expected list grows by exactly those;
+  6. the builder's unit tests that pinned the **entity's own** refusal of a partner without a role
+     (`Partner.Create` / `Replace` throwing): the entity no longer refuses, `partner.roleRequired` decides in
+     validation (013-q B-N1); and the unit test that held rule keys to letters only (a segment may carry a
+     digit, 013-q B-N2).
   No migration is required; one is allowed for the indexes of section 3 only.
 - AC-02 *(manual)* The 24 decisions are made by booleans obtained through `IRules` and passed to Domain
   functions; `Api` reads no rule; no check of 6.1 remains as a constant (architecture §11).

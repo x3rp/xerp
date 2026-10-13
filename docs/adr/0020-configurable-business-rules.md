@@ -59,7 +59,7 @@ A rule is defined once, in `Xerp.Domain`, as a **rule definition**:
 
 | Part | Meaning |
 |---|---|
-| `key` | Stable identifier, `area.statement`: two lowerCamel segments separated by a dot — `purchase.partnerRequired`, `stock.negativeStockAllowed`. Part of the contract like an error code: never renamed, never reused. |
+| `key` | Stable identifier, `area.statement`: two lowerCamel segments separated by a dot (a segment starts with a lower-case letter and may contain digits: `partner.addressLine1Required`) — `purchase.partnerRequired`, `stock.negativeStockAllowed`. Part of the contract like an error code: never renamed, never reused. |
 | `group` | The first segment (`stock`, `purchase`, `sales`, `partner`, `document`, …), for listing. |
 | `name` | The switch in plain language, written as a statement that is true or false: "Partner required on a purchase order", "Stock may go below zero". **`true` always means: the statement in the name holds.** |
 | `description` | One paragraph, in English, written for an agent: which operations the rule affects, what happens when it is `true` and what when it is `false`. |

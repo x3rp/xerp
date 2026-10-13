@@ -72,6 +72,8 @@ done (spec 009, `12f33ff`).
 | cleanup/1 | The rest of a refused oversized body is discarded within Kestrel's defaults (30 MB, about 5 s), not a bound of ours | open | after MVP | Network and time only; nothing above 1 MB is buffered or parsed. Set `MaxRequestBodySize` a little above 1 MB as an outer bound together with rate limiting (020). |
 | 011/1 | Verify logs only the differences on the returned page (011/S5) | open on `0f308c1` | after MVP | Rebuild logs all. |
 | 011/2 | Rebuild answers `500` when a pair's ledger sum is negative (`StockBalance.CorrectTo` throws) | open on `0f308c1` | after MVP | Needs a corrupted ledger; the refusal is right, the answer could be clearer. |
+| 013/1 | The lookups of `<m>.nameUnique` and `partner.taxIdUnique` scan the tenant's rows of the resource (`lower(name)`, `lower(taxId)`), with no index (013-q, B-N4) | open on `af47489` | when a tenant with a uniqueness rule on has many records | Performance only; the lookup runs only with the rule `true`, under the tenant lock. Fix: the non-unique indexes spec 013 section 3 allows. |
+| 013/2 | Create and replace of the four masters always take the tenant lock, also when no uniqueness rule is on (013-q, B-N3) | open on `af47489` | after MVP | Throughput of parallel master writes of one tenant only; correct. Narrow together with 005/5 if it is ever measured. |
 
 Merge notes in the reviews ("take `main`'s version of `NNN-q.md`") are instructions for the orchestrator at
 merge time, not open items, and are not listed.
