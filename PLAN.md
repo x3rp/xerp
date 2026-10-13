@@ -47,16 +47,20 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
-| P01 | Temelji prodaje: kategorije artikala, barkodovi, prodajne cijene, porezne stope, načini plaćanja | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P02 | Djelatnici (konobari, PIN) i ovlasti za osjetljive radnje (cijena, popust, storno, povrat) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P03 | Opcije i dodaci artikala; normativi (sastojci artikala koji se pripremaju) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P04 | POS mjesto (blagajna na skladištu), izbor artikala za POS, raspored tipki | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P05 | POS račun: otvaranje, stavke, napomene, popusti, storno s razlogom, otvorena narudžba, nastavak; idempotentnost | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P06 | Naplata i izdavanje računa: gotovina, kartica, kombinirano, povrat gotovine, kopija; knjiženje prodaje i zaliha (i po normativu); storno/povrat nakon naplate | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P07 | Smjene i blagajna: otvaranje, uplate/isplate, predaja, zaključak, brojanje, razlika, izvještaji prometa | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P08 | Stolovi i zone, statusi stola, konobar na računu, premještanje, prijenos, podjela i spajanje računa | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P09 | Priprema: mjesta pripreme, usmjeravanje, slanje (i naknadnih stavki), statusi i vremena, ekran kuhinje/šanka | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P10 | Fiskalizacija (HR), kartični terminal, pisači, offline rad | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | 🔄 | 🔄 | ⬜ | ⬜ |
+| P02 | Djelatnici (šifra i PIN), ovlasti za osjetljive radnje, API ključ samo za POS | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P03 | Opcije i dodaci artikala; normativi | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P04 | POS mjesto, jelovnik, raspored tipki, jedno čitanje jelovnika za frontend | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P05 | Račun: otvaranje, stavke, napomene, otvorena narudžba, nastavak; verzija; ključevi idempotentnosti | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P05a | Promjena cijene, popusti, storno s razlogom | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P06 | Smjena 1: otvaranje s početnim iznosom, uplate/isplate, predaja | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P07 | Naplata i izdavanje: gotovina, kartica, kombinirano, povrat gotovine, račun, knjiženje zaliha | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P07a | Povrat nakon naplate | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P08 | Smjena 2: zaključak, očekivana i prebrojena gotovina, izvještaji prometa | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P09 | Zone, stolovi, statusi, premještanje, prijenos, podjela, spajanje | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P10 | Priprema: mjesta pripreme, usmjeravanje, slanje, statusi, ekran kuhinje | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P11 | Fiskalizacija (HR) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P12 | Ishod kartičnog terminala, status ispisa, offline ponavljanje | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | | **— odgođeno dok POS ne bude gotov: 014, 015 i sve ispod —** | | | | | |
 | 016 | Kontni plan + temeljnice | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 017 | Brojčane serije dokumenata | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -72,9 +76,9 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 
 ## Što tko trenutno radi
 
-- **Arhitekt:** piše pregled POS modula (`docs/pos/overview.md`) i spec P01.
-- **Builder:** čeka spec P01.
-- **Tester:** zaustavljen; čeka spec P01.
+- **Arhitekt:** pregled POS-a (`docs/pos/overview.md`), ADR-0022 i spec P01 napisani; zaustavljen do reviewa P01.
+- **Builder:** implementira P01 na `feat/P01-sales-master-data`.
+- **Tester:** piše testove za P01 na `tests/P01-sales-master-data`.
 
 ## Dnevnik
 
@@ -128,6 +132,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-13 — spec 015 (vrednovanje zaliha: pomični prosjek po artiklu i skladištu, 3 pravila, ADR-0021) commitan; tester i builder rade 013.
 - 2026-10-13 — vlasnik traži POS modul kao nadogradnju na ERP sa zasebnim frontendom; plan P01–P10 dodan; 013 se dovršava, 014 i 015 se odgađaju.
 - 2026-10-13 — review 013 OK; orkestrator pokrenuo 697 unit + 1955 integracijskih testova, svi prolaze; 013 spojen u `main` i pushan.
+- 2026-10-13 — arhitekt napisao pregled POS-a, ADR-0022 i spec P01; podjela proširena na P01–P12 (smjena prije naplate; račun i naplata podijeljeni u dva dijela; fiskalizacija zasebno); 13 otvorenih odluka vlasnika sa zadanim vrijednostima (pregled §9).
 
 ## Odluke vlasnika
 
