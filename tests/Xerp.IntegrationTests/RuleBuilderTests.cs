@@ -148,7 +148,7 @@ public class RuleBuilderTests(XerpFixture app)
         var s = await Orders.SetupAsync(app);
         var before = await Rules.ListAsync(s.Http);
         // Written directly: no operation can store a key that is no rule. Among them the keys of the first text of the spec.
-        foreach (var key in new[] { "stock.negativeStock", "quantity.decimals", "nope", "Stock.NegativeStockAllowed", "partner.roleRequired" })
+        foreach (var key in new[] { "stock.negativeStock", "quantity.decimals", "nope", "Stock.NegativeStockAllowed", "document.maxLines" })
             Assert.Equal(1, await app.ExecuteSqlAsync(
                 """INSERT INTO "RuleValues" ("TenantId", "Key", "Value", "UpdatedAt", "UpdatedBy") VALUES (@t, @key, TRUE, now(), @k)""",
                 ("t", s.Tenant.Id), ("key", key), ("k", s.Tenant.ApiKeyId)));
@@ -156,7 +156,7 @@ public class RuleBuilderTests(XerpFixture app)
         // Not listed, not counted, not found - and the six rules are untouched.
         var list = await Rules.ListAsync(s.Http);
         McpAssert.JsonEqual(before, list, "A stored value with an unknown key changed the list of rules");
-        Assert.Equal(Rules.Keys, list.RuleKeys());
+        Assert.Equal(Rules.All, list.RuleKeys());
         Assert.Equal(0, (await Rules.ListAsync(s.Http, "?source=tenant")).Total());
         using (var unknown = await s.Http.GetAsync(Rules.PathOf("stock.negativeStock")))
             await HttpAssert.NotFoundAsync(unknown);
