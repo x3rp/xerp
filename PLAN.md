@@ -43,7 +43,7 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 011 | Zadano (centralno) skladište, lager lista po skladištu, spremljeni saldo zaliha | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 011a | Partner u zaglavlju skladišnog dokumenta (primka: dobavljač, izdatnica: kupac) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 012 | Konfigurabilna pravila (booleovi prekidači): registar, vrijednosti po tenantu, prvih 6 pravila | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 013 | Konfigurabilna pravila: matični podaci (formati, duljine, obavezna polja) | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| 013 | Konfigurabilna pravila: matični podaci (formati, duljine, obavezna polja) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
@@ -72,9 +72,9 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 
 ## Što tko trenutno radi
 
-- **Arhitekt:** review 013; zatim pregled POS modula (`docs/pos.md`) i spec P01.
-- **Builder:** 013 predan na review (`af47489`); čeka P01.
-- **Tester:** testovi 013 predani (`a2bfd39`); čeka spec P01.
+- **Arhitekt:** piše pregled POS modula (`docs/pos/overview.md`) i spec P01.
+- **Builder:** čeka spec P01.
+- **Tester:** zaustavljen; čeka spec P01.
 
 ## Dnevnik
 
@@ -127,6 +127,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-12 — specovi 013 (24 prekidača) i 014 (13 prekidača) commitani; API ponovno izgrađen iz `main` (MCP: 62 alata, uključujući `rule_*`); MCP registriran u Claude Codeu za `xerp-cli` i provjeren od početka do kraja; tester kreće na 013.
 - 2026-10-13 — spec 015 (vrednovanje zaliha: pomični prosjek po artiklu i skladištu, 3 pravila, ADR-0021) commitan; tester i builder rade 013.
 - 2026-10-13 — vlasnik traži POS modul kao nadogradnju na ERP sa zasebnim frontendom; plan P01–P10 dodan; 013 se dovršava, 014 i 015 se odgađaju.
+- 2026-10-13 — review 013 OK; orkestrator pokrenuo 697 unit + 1955 integracijskih testova, svi prolaze; 013 spojen u `main` i pushan.
 
 ## Odluke vlasnika
 
