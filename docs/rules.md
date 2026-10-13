@@ -124,6 +124,23 @@ zero has a value of zero; to I8, only a receipt line has a cost, and the method 
 and warehouse, in posting order; stock below zero at the last known cost); to I10, a cost is `>= 0` with at
 most 6 decimals, a value has 2. The valuation method is a **feature**, not a switch.
 
+### Batch P01 — sales master data (spec P01, written)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `articleCategory.codeChangeable`, `taxRate.codeChangeable`, `paymentMethod.codeChangeable` | The code of an article category / a tax rate / a payment method may be changed | `true` | As the `codeChangeable` rules of batch 013. |
+| `articleCategory.nameUnique`, `taxRate.nameUnique`, `paymentMethod.nameUnique` | Names of article categories / tax rates / payment methods must be unique | `false` | As the `nameUnique` rules of batch 013. |
+| `article.categoryRequired` | Category required in an article's sales data | `false` | Yes: sales data saved without a category is refused. |
+| `article.taxRateRequired` | Tax rate required in an article's sales data | `false` | Yes: sales data saved with no tax rate is refused. |
+| `article.salesPriceRequired` | Sales price required in an article's sales data | `false` | Yes: sales data saved without a price is refused. |
+| `article.barcodeUnique` | A barcode may belong to only one article | `true` | No: several articles may have one barcode; the lookup returns all (`BARCODE_TAKEN` otherwise). |
+
+10 rules; the registry then has 40. Invariants of the same spec (P01 §6.2): the bounds of a tax rate
+(0–100, 4 decimals) and of a sales price (not negative, 6 decimals), at most four tax rates per article and
+the length and alphabet of a barcode (I10, I9); the kinds of a payment method, "a sales price includes tax"
+and "an article lists a barcode once" (I8, definitions). POS rules (group `pos`) are added by specs P02–P12
+(ADR-0022/7).
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a

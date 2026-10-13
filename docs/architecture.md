@@ -187,6 +187,7 @@ Every non-2xx response under `/api/v1` is `application/problem+json` (RFC 9457) 
 | 409 | `CODE_CHANGE_NOT_ALLOWED` | With `<m>.codeChangeable` = `false`: a replace would change the code of a unit, article, partner or warehouse (spec 013). `errors` has `code`. |
 | 409 | `NAME_TAKEN` | With `<m>.nameUnique` = `true`: another record of the same resource in the tenant has this name (spec 013). `errors` has `name`. |
 | 409 | `TAX_ID_TAKEN` | With `partner.taxIdUnique` = `true`: another partner of the tenant has this tax id (spec 013). `errors` has `taxId`. |
+| 409 | `BARCODE_TAKEN` | The article already has this barcode; or, with `article.barcodeUnique` = `true`, another article of the tenant has it — then with `rules` (spec P01). `errors` has `barcode`. |
 | 409 | `IN_USE` | Record is referenced and cannot be deleted; or a field that is frozen while the record is used would change (`errors` names the fields). |
 | 409 | `REFERENCE_NOT_FOUND` | A `<role>Id` in the body is well-formed but no such record exists in this tenant (also: other tenant's record). `errors` has the field's key. |
 | 409 | `REFERENCE_INACTIVE` | A `<role>Id` in the body points at an inactive record that is being newly assigned. `errors` has the field's key. |

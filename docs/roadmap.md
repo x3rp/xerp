@@ -127,6 +127,12 @@ What stays ahead of posting, and why:
 | 24 | **024 Rate limiting** *(platform)* — limits on `/api/v1` and `/mcp`. | MCP specification (servers must rate-limit tool calls). | Must precede production tenants. |
 | — | Later: OAuth-based MCP authorization together with human login, article groups/categories (and posting configuration per group), barcodes, partner contact data (e-mail, phone, contact persons), several addresses per partner (with 009/010 if they need delivery and invoice addresses), retention/erasure of personal data in partner records, perpetual inventory posting (stock -> G/L), price lists and discounts, bins/locations, lots/serials, multi-currency, returns, fixed reporting, optimistic concurrency (`ETag`/`If-Match`) on masters, country localisation packs (outside the core). | — | Each depends on the core above. |
 
+### POS module (owner, 2026-10-13)
+
+A hospitality POS is built on the ERP before rows 14 and 15 continue: `docs/pos/overview.md` (specs P01–P12,
+what each covers, open owner decisions), ADR-0022. P01 (sales master data) is ERP master data that row 18
+(taxes and invoices) will reuse.
+
 ### MVP boundary (owner decision, 2026-10-09)
 
 **The MVP is specs 001–010**: tenants and API keys, units, articles, partners, warehouses, the MCP server,
