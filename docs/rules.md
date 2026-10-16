@@ -17,7 +17,7 @@ is configurable** — and **a rule is a boolean**: a named yes/no switch in plai
 - **INVARIANT** — cannot be switched off without breaking integrity, security or the contract, or is a bound
   of the platform. Referred to as I1–I12.
 - **Batch** — the spec that moves the rule onto the registry. Until that spec is merged the rule is still a
-  fixed check with the default's behaviour. `012` is merged; `013` is written; `014`, `017`, `021` are roadmap rows.
+  fixed check with the default's behaviour. `012` and `013` are merged; `P01` is built (review OK, merged after the tester's AC-81 correction and a green run); `014`, `017`, `021` are roadmap rows.
   **feature** means: the rule is a business choice, not an invariant, but its other value is behaviour that
   does not exist yet; it becomes a switch with the spec that builds it.
 - Sources are written `005/R15` (spec 005, rule R15), `arch §5` (architecture), `ADR-0012`.
@@ -124,7 +124,7 @@ zero has a value of zero; to I8, only a receipt line has a cost, and the method 
 and warehouse, in posting order; stock below zero at the last known cost); to I10, a cost is `>= 0` with at
 most 6 decimals, a value has 2. The valuation method is a **feature**, not a switch.
 
-### Batch P01 — sales master data (spec P01, written)
+### Batch P01 — sales master data (spec P01, built; review OK)
 
 | Key | Name | Default | Yes / no |
 |---|---|---|---|
@@ -138,7 +138,8 @@ most 6 decimals, a value has 2. The valuation method is a **feature**, not a swi
 10 rules; the registry then has 40. Invariants of the same spec (P01 §6.2): the bounds of a tax rate
 (0–100, 4 decimals) and of a sales price (not negative, 6 decimals), at most four tax rates per article and
 the length and alphabet of a barcode (I10, I9); the kinds of a payment method, "a sales price includes tax"
-and "an article lists a barcode once" (I8, definitions). POS rules (group `pos`) are added by specs P02–P12
+and "an article lists a barcode once" (I8, definitions). New error code: `BARCODE_TAKEN` (`409`, key
+`barcode`; with `rules` only when `article.barcodeUnique` refused it). POS rules (group `pos`) are added by specs P02–P12
 (ADR-0022/7).
 
 ### Not a switch — what the first version listed as configurable and why it no longer is

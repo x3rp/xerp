@@ -184,7 +184,7 @@ Every non-2xx response under `/api/v1` is `application/problem+json` (RFC 9457) 
 | 403 | `FORBIDDEN` | Valid credential, operation not allowed for it. |
 | 404 | `NOT_FOUND` | No such record in this tenant (also: other tenant's record, malformed id), no such path, or method not supported on the path. |
 | 409 | `CODE_TAKEN` | Unique code already used in this tenant. |
-| 409 | `CODE_CHANGE_NOT_ALLOWED` | With `<m>.codeChangeable` = `false`: a replace would change the code of a unit, article, partner or warehouse (spec 013). `errors` has `code`. |
+| 409 | `CODE_CHANGE_NOT_ALLOWED` | With `<m>.codeChangeable` = `false`: a replace would change the code of a unit, article, partner or warehouse (spec 013), or of an article category, tax rate or payment method (spec P01). `errors` has `code`. |
 | 409 | `NAME_TAKEN` | With `<m>.nameUnique` = `true`: another record of the same resource in the tenant has this name (spec 013). `errors` has `name`. |
 | 409 | `TAX_ID_TAKEN` | With `partner.taxIdUnique` = `true`: another partner of the tenant has this tax id (spec 013). `errors` has `taxId`. |
 | 409 | `BARCODE_TAKEN` | The article already has this barcode; or, with `article.barcodeUnique` = `true`, another article of the tenant has it — then with `rules` (spec P01). `errors` has `barcode`. |
