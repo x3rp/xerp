@@ -47,7 +47,7 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
-| P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | 🔄 | 🔄 | ⬜ | ⬜ |
+| P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | ✅ | ✅ | ✅ | 🔄 |
 | P02 | Djelatnici (šifra i PIN), ovlasti za osjetljive radnje, API ključ samo za POS | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | P03 | Opcije i dodaci artikala; normativi | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | P04 | POS mjesto, jelovnik, raspored tipki, jedno čitanje jelovnika za frontend | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -76,9 +76,9 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 
 ## Što tko trenutno radi
 
-- **Arhitekt:** pregled POS-a (`docs/pos/overview.md`), ADR-0022 i spec P01 napisani; zaustavljen do reviewa P01.
-- **Builder:** implementira P01 na `feat/P01-sales-master-data`.
-- **Tester:** piše testove za P01 na `tests/P01-sales-master-data`.
+- **Arhitekt:** review P01 OK; zaustavljen do speca P02.
+- **Builder:** P01 gotov (`ce642d1`); zaustavljen.
+- **Tester:** testovi P01 gotovi; ispravak AC-81 (B-1) unio orkestrator po odluci reviewa; zaustavljen.
 
 ## Dnevnik
 
@@ -133,6 +133,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-13 — vlasnik traži POS modul kao nadogradnju na ERP sa zasebnim frontendom; plan P01–P10 dodan; 013 se dovršava, 014 i 015 se odgađaju.
 - 2026-10-13 — review 013 OK; orkestrator pokrenuo 697 unit + 1955 integracijskih testova, svi prolaze; 013 spojen u `main` i pushan.
 - 2026-10-13 — arhitekt napisao pregled POS-a, ADR-0022 i spec P01; podjela proširena na P01–P12 (smjena prije naplate; račun i naplata podijeljeni u dva dijela; fiskalizacija zasebno); 13 otvorenih odluka vlasnika sa zadanim vrijednostima (pregled §9).
+- 2026-10-16 — P01: builder 744/744 unit i 2053/2054 integracijskih; review OK, sporni test AC-81 bio pogrešan (B-1) i ispravljen; neovisni test čeka slobodnu memoriju (računalo ima < 1 GB slobodno).
 
 ## Odluke vlasnika
 
