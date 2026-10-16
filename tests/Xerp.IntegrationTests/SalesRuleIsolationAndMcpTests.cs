@@ -217,7 +217,8 @@ public class SalesRuleIsolationAndMcpTests(XerpFixture app)
         // X is judged by X's values.
         Assert.Equal(SalesRules.Keys.Order(StringComparer.Ordinal), (await Rules.ListAsync(x.Http, "?source=tenant&limit=500")).RuleKeys());
         var ofX = await x.ArticleIdAsync("A1");
-        await MasterRules.RequiredAsync(SalesData.PutAsync(x.Http, ofX, SalesData.Body(null, [], 1m)), SalesRules.CategoryRequired, "categoryId");
+        var vatOfX = await x.TaxRateAsync("VAT25");
+        await MasterRules.RequiredAsync(SalesData.PutAsync(x.Http, ofX, SalesData.Body(null, [vatOfX.Id()], 1m)), SalesRules.CategoryRequired, "categoryId");
         await Barcodes.CreateAsync(x.Http, ofX, Ean);
         await Barcodes.CreateAsync(x.Http, await x.ArticleIdAsync("A2"), Ean);
         var category = await Categories.CreateAsync(x.Http, "C1", "Same name");
