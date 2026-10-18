@@ -48,7 +48,7 @@ public class SalesRuleIsolationAndMcpTests(XerpFixture app)
 
         var list = await Rules.ListAsync(tenant.Client, "?limit=500");
 
-        Assert.Equal(40, list.Total());
+        Assert.Equal(48, list.Total()); // 40 of P01 and the eight of P02 (P02/AC-01, item 1)
         Assert.Equal(Rules.All, list.RuleKeys());
         var expected = new (string Key, bool Default)[]
         {
@@ -110,8 +110,8 @@ public class SalesRuleIsolationAndMcpTests(XerpFixture app)
 
         var names = (await s.Mcp.Client.ListToolsAsync()).Select(t => t.ProtocolTool.Name).ToArray();
 
-        // The literal list of the 84 is in McpToolListTests.
-        Assert.Equal(84, names.Distinct().Count());
+        // The literal list of the tools is in McpToolListTests.
+        Assert.Equal(100, names.Distinct().Count()); // 84 of P01 and the 16 of P02 (P02/AC-01, item 2)
         McpAssert.JsonEqual(await Categories.ListAsync(s.Http, ""), await s.Mcp.OkAsync("article_category_list", new { }));
         McpAssert.JsonEqual(await Tax.GetAsync(s.Http, vat.Id()), await s.Mcp.OkAsync("tax_rate_get", new { code = "vat25" }));
         McpAssert.JsonEqual(await Pay.ListAsync(s.Http, "?kind=card"), await s.Mcp.OkAsync("payment_method_list", new { kind = "card" }));

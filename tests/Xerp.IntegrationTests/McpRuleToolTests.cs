@@ -51,7 +51,7 @@ public class McpRuleToolTests(XerpFixture app)
 
         var list = await s.Mcp.OkAsync("rule_list", new { });
 
-        Assert.Equal(40, list.Total());
+        Assert.Equal(48, list.Total());
         Assert.Equal(Rules.All, list.RuleKeys());
         McpAssert.JsonEqual(await Rules.ListAsync(s.Http), list, "rule_list differs from GET /rules");
         McpAssert.JsonEqual(await Rules.ListAsync(s.Http, "?group=sales&search=partner&source=default&limit=1&offset=0"),
@@ -297,7 +297,7 @@ public class McpRuleToolTests(XerpFixture app)
             McpAssert.JsonEqual(before[o.Tool("create")], after[o.Tool("create")], $"The input schema of {o.Tool("create")} changed with the rule");
             McpAssert.JsonEqual(before[o.Tool("update")], after[o.Tool("update")], $"The input schema of {o.Tool("update")} changed with the rule");
         }
-        Assert.Equal(84, after.Count);
+        Assert.Equal(100, after.Count);
         await Rules.AssertBalancedAsync(s.Http);
     }
 }
