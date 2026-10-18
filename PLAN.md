@@ -138,6 +138,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-18 — spec P02 commitan (djelatnici sa šifrom i PIN-om, zaključavanje, sesije, uloge sa 7 prava, odobrenje drugog djelatnika, API ključ s opsegom full/pos; 8 pravila, 16 alata); tester i builder krenuli na P02, arhitekt na P03.
 - 2026-10-18 — spec P03 commitan (grupe opcija i opcije s doplatom, normativi usluga i opcija, 5 pravila, 16 alata).
 - 2026-10-18 — spec P04 commitan (POS mjesta, jelovnici sa stranicama i rešetkom tipki, jedno čitanje jelovnika s ETag-om, traženje po nazivu/šifri/barkodu; 8 pravila, 14 alata).
+- 2026-10-18 — orkestrator napravio `xerp-pos` (zaseban repozitorij, lokalno `8b40b5c`, bez remotea): spajanje uređaja, jelovnik iz P04 ili iz kategorija (P01), PIN prijava (P02), račun s opcijama i napomenama, otvoreni računi u pregledniku do P05, traženje i čitač barkoda, naplata s povratom, predračun 80 mm; `seed.py` pravi probni kafić.
 
 ## Odluke vlasnika
 
