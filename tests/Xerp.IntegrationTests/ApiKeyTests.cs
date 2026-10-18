@@ -143,7 +143,7 @@ public class ApiKeyTests(XerpFixture app)
         var initial = await Keys.GetAsync(tenant.Client, tenant.ApiKeyId);
 
         Assert.Equal(
-            ["actorType", "createdAt", "createdBy", "id", "isActive", "name", "revokedAt", "revokedBy"],
+            ["actorType", "createdAt", "createdBy", "id", "isActive", "name", "revokedAt", "revokedBy", "scope"],
             body.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal));
         foreach (var property in body.EnumerateObject())
             McpAssert.JsonEqual(created.Body.GetProperty(property.Name), property.Value, $"'{property.Name}' differs from the 201 body");
@@ -151,6 +151,8 @@ public class ApiKeyTests(XerpFixture app)
 
         Assert.Equal("initial", initial.Str("name"));
         Assert.Equal("human", initial.Str("actorType"));
+        // Spec P02, AC-01 item 3: every key created here and the initial key are "full".
+        Assert.Equal(("full", "full"), (body.Str("scope"), initial.Str("scope")));
         Assert.Equal(JsonValueKind.Null, initial.GetProperty("createdBy").ValueKind);
         Assert.False(initial.TryGetProperty("key", out _));
     }

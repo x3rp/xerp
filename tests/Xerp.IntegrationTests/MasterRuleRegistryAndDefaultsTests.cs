@@ -24,7 +24,7 @@ public class MasterRuleRegistryAndDefaultsTests(XerpFixture app)
 
         var list = await Rules.ListAsync(tenant.Client, "?limit=500");
 
-        Assert.Equal(40, list.Total());
+        Assert.Equal(48, list.Total());
         // The literal inventory is in RuleRegistryTests (012 AC-20, 013 AC-10); Rules.All is pinned to it there.
         Assert.Equal(Rules.All, list.RuleKeys());
         Assert.Equal(24, MasterRules.Keys.Distinct().Count());

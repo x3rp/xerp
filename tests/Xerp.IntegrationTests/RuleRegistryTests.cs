@@ -121,9 +121,10 @@ public class RuleRegistryTests(XerpFixture app)
         var list = await Rules.ListAsync(tenant.Client);
 
         Assert.Equal(new[] { "items", "limit", "offset", "total" }, list.PropertyNames());
-        Assert.Equal(40, list.Total());
+        Assert.Equal(48, list.Total());
         // The literal inventory (architecture §9): a spec that adds a rule adds it here, with its default.
         // Spec 013, AC-10: the six of spec 012 and the 24 of the masters. Spec P01, AC-10: the ten of sales master data.
+        // Spec P02, AC-10: the eight of POS operators.
         var inventory = new (string Key, bool Default)[]
         {
             ("article.barcodeUnique", true),
@@ -148,6 +149,14 @@ public class RuleRegistryTests(XerpFixture app)
             ("partner.taxIdUnique", false),
             ("paymentMethod.codeChangeable", true),
             ("paymentMethod.nameUnique", false),
+            ("pos.operatorOnSeveralDevicesAllowed", true),
+            ("pos.secondOperatorApprovalAllowed", true),
+            ("pos.severalOperatorsPerDeviceAllowed", true),
+            ("posOperator.codeChangeable", true),
+            ("posOperator.nameUnique", false),
+            ("posOperator.roleRequired", true),
+            ("posRole.codeChangeable", true),
+            ("posRole.nameUnique", false),
             ("purchase.overReceiptAllowed", false),
             ("purchase.partnerRequired", true),
             ("sales.overDeliveryAllowed", false),
@@ -206,7 +215,7 @@ public class RuleRegistryTests(XerpFixture app)
     {
         var tenant = await app.NewTenantAsync();
         var list = await Rules.ListAsync(tenant.Client);
-        Assert.Equal(40, list.Items().Length);
+        Assert.Equal(48, list.Items().Length);
 
         foreach (var listed in list.Items())
             McpAssert.JsonEqual(listed, await Rules.GetAsync(tenant.Client, listed.Str("key")), "GET /rules/{key} differs from the list item");
@@ -237,7 +246,7 @@ public class RuleRegistryTests(XerpFixture app)
     {
         var tenant = await app.NewTenantAsync();
         // The registry answers in this tenant: the 404 below is about the key, not about a missing route.
-        Assert.Equal(40, (await Rules.ListAsync(tenant.Client)).Total());
+        Assert.Equal(48, (await Rules.ListAsync(tenant.Client)).Total());
 
         using var get = await tenant.Client.GetAsync(Rules.PathOf(key));
         using var reset = await Rules.SendResetAsync(tenant.Client, key);
@@ -282,7 +291,7 @@ public class RuleRegistryTests(XerpFixture app)
         Assert.Equal(new[] { Rules.Protected }, (await Rules.ListAsync(http, "?source=tenant&group=sales")).RuleKeys());
         // R1: the list has all thirty for every tenant, set or not.
         var all = await Rules.ListAsync(http);
-        Assert.Equal(40, all.Total());
+        Assert.Equal(48, all.Total());
         Assert.Equal(Rules.All, all.RuleKeys());
     }
 
@@ -292,11 +301,11 @@ public class RuleRegistryTests(XerpFixture app)
         var tenant = await app.NewTenantAsync();
 
         var page = await Rules.ListAsync(tenant.Client, "?limit=2&offset=1");
-        var beyond = await Rules.ListAsync(tenant.Client, "?offset=40");
+        var beyond = await Rules.ListAsync(tenant.Client, "?offset=48");
 
         Assert.Equal(Rules.All[1..3], page.RuleKeys());
-        Assert.Equal((40, 2, 1), (page.Total(), page.GetProperty("limit").GetInt32(), page.GetProperty("offset").GetInt32()));
-        Assert.Equal((40, 0), (beyond.Total(), beyond.Items().Length));
+        Assert.Equal((48, 2, 1), (page.Total(), page.GetProperty("limit").GetInt32(), page.GetProperty("offset").GetInt32()));
+        Assert.Equal((48, 0), (beyond.Total(), beyond.Items().Length));
         Assert.Equal(50, (await Rules.ListAsync(tenant.Client)).GetProperty("limit").GetInt32());
     }
 }

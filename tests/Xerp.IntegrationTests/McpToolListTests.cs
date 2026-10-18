@@ -43,7 +43,7 @@ public class McpToolListTests(XerpFixture app)
         new("article_update", ["id", "code", "name", "description", "type", "baseUnitId", "isActive"],
             ["id", "code", "name", "description", "type", "baseUnitId", "isActive"], "update"),
         new("article_delete", ["id"], ["id"], "delete"),
-        new("api_key_list", ["search", "actorType", "isActive", "limit", "offset"], [], "read"),
+        new("api_key_list", ["search", "actorType", "isActive", "scope", "limit", "offset"], [], "read"), // scope: spec P02, section 5
         new("api_key_get", ["id"], ["id"], "read"),
         new("api_key_revoke", ["id"], ["id"], "update"),
     ];
@@ -175,10 +175,32 @@ public class McpToolListTests(XerpFixture app)
         new("article_barcode_delete", ["id"], ["id"], "delete"),
     ];
 
-    // The complete list (spec 004, section 5.3; specs 005 to 012 and P01, section 5): a new tool must be added here by its spec.
+    // Spec P02, section 5: roles and operators as the P01 masters, set PIN, sessions and authorize.
+    private static readonly Expected[] SpecP02Tools =
+    [
+        new("pos_role_list", ["search", "isActive", "limit", "offset"], [], "read"),
+        new("pos_role_get", ["id", "code"], [], "read"),
+        new("pos_role_create", ["code", "name", "rights", "isActive"], ["code", "name", "rights"], "create"),
+        new("pos_role_update", ["id", "code", "name", "rights", "isActive"], ["id", "code", "name", "rights", "isActive"], "update"),
+        new("pos_role_delete", ["id"], ["id"], "delete"),
+        new("pos_operator_list", ["search", "isActive", "roleId", "limit", "offset"], [], "read"),
+        new("pos_operator_get", ["id", "code"], [], "read"),
+        // roleId is judged by posOperator.roleRequired: nullable and out of "required" of create (as 013).
+        new("pos_operator_create", ["code", "name", "roleId", "pin", "isActive"], ["code", "name", "pin"], "create"),
+        new("pos_operator_update", ["id", "code", "name", "roleId", "isActive"], ["id", "code", "name", "roleId", "isActive"], "update"),
+        new("pos_operator_delete", ["id"], ["id"], "delete"),
+        new("pos_operator_set_pin", ["id", "pin"], ["id", "pin"], "-"),
+        new("pos_session_start", ["operatorCode", "pin"], ["operatorCode", "pin"], "-"),
+        new("pos_session_get", ["id"], ["id"], "read"),
+        new("pos_session_list", ["status", "limit", "offset"], [], "read"),
+        new("pos_session_end", ["id"], ["id"], "-"),
+        new("pos_authorize", ["sessionId", "right", "approverCode", "approverPin"], ["sessionId", "right"], "-"),
+    ];
+
+    // The complete list (spec 004, section 5.3; specs 005 to 012, P01 and P02, section 5): a new tool must be added here by its spec.
     private static readonly Expected[] Tools =
         [.. Spec003Tools, .. Spec004Tools, .. Spec005Tools, .. Spec006Tools, .. Spec007Tools, .. Spec009Tools, .. Spec010Tools,
-            .. Spec011Tools, .. Spec012Tools, .. SpecP01Tools];
+            .. Spec011Tools, .. Spec012Tools, .. SpecP01Tools, .. SpecP02Tools];
 
     private async Task<Dictionary<string, Tool>> ListToolsAsync(string? key = null)
     {
@@ -191,7 +213,7 @@ public class McpToolListTests(XerpFixture app)
     private static string[] Sorted(IEnumerable<string> values) => values.Order(StringComparer.Ordinal).ToArray();
 
     [Fact]
-    public async Task AC40_S004_AC90_S005_AC80_S006_AC80_S007_AC80_S009_AC85_S010_AC85_S011_AC70_S012_AC12_SP01_AC12_Tool_list_is_exactly_the_84_tools_of_the_specs()
+    public async Task AC40_S004_AC90_S005_AC80_S006_AC80_S007_AC80_S009_AC85_S010_AC85_S011_AC70_S012_AC12_SP01_AC12_SP02_AC12_Tool_list_is_exactly_the_100_tools_of_the_specs()
     {
         var tools = await ListToolsAsync();
 
@@ -205,7 +227,8 @@ public class McpToolListTests(XerpFixture app)
         Assert.Equal(4, Spec011Tools.Length);
         Assert.Equal(5, Spec012Tools.Length);
         Assert.Equal(22, SpecP01Tools.Length);
-        Assert.Equal(84, Tools.Length);
+        Assert.Equal(16, SpecP02Tools.Length);
+        Assert.Equal(100, Tools.Length);
         Assert.Equal(Sorted(Tools.Select(t => t.Name)), Sorted(tools.Keys));
         Assert.DoesNotContain("api_key_create", tools.Keys);
         Assert.DoesNotContain(tools.Keys, name => name.StartsWith("tenant", StringComparison.OrdinalIgnoreCase));
@@ -357,8 +380,8 @@ public class McpToolListTests(XerpFixture app)
     {
         var tools = await ListToolsAsync();
 
-        // "No new tool; tools/list still returns exactly the 37 tools of spec 007" — 45 since spec 009, 53 since spec 010, 57 since spec 011, 62 since spec 012, 84 since spec P01.
-        Assert.Equal(84, Tools.Length);
+        // "No new tool; tools/list still returns exactly the 37 tools of spec 007" — 45 since spec 009, 53 since spec 010, 57 since spec 011, 62 since spec 012, 84 since spec P01, 100 since spec P02.
+        Assert.Equal(100, Tools.Length);
         Assert.Equal(Sorted(Tools.Select(t => t.Name)), Sorted(tools.Keys));
         Assert.DoesNotContain(tools.Keys, name => name.Contains("count", StringComparison.OrdinalIgnoreCase));
         // The one place where a criterion asks for words in a description (AC-80).
@@ -619,7 +642,7 @@ public class McpToolListTests(XerpFixture app)
         // Section 5: create and update gain "partnerId? (uuid or null)", list gains "partnerId? (uuid)"; the tool list is unchanged.
         var tools = await ListToolsAsync();
 
-        Assert.Equal(84, tools.Count);
+        Assert.Equal(100, tools.Count);
         var schema = tools[toolName].InputSchema;
         Assert.True(schema.GetProperty("properties").TryGetProperty("partnerId", out var property), $"{toolName} has no partnerId property.");
         Assert.True(property.TryGetProperty("description", out var description) && !string.IsNullOrWhiteSpace(description.GetString()),
@@ -672,6 +695,32 @@ public class McpToolListTests(XerpFixture app)
         Assert.Contains("stock document", Description("partner_delete"), StringComparison.OrdinalIgnoreCase);
     }
 
+    // ---- spec P02, AC-12 and section 5 ----
+
+    [Fact]
+    public async Task SP02_AC12_The_16_POS_tools_have_description_closed_input_schema_and_the_master_annotations()
+    {
+        var tools = await ListToolsAsync();
+
+        Assert.Equal(100, tools.Count);
+        AssertMetadata(tools, SpecP02Tools);
+        // The annotations of the master tools are those of P01; the spec does not pin those of the other five.
+        AssertAnnotations(tools, SpecP02Tools.Where(t => t.Kind != "-").ToArray());
+        string Description(string name) => tools[name].Description ?? "";
+        Assert.Contains("OPERATOR_SIGN_IN_FAILED", Description("pos_session_start"), StringComparison.Ordinal);
+        foreach (var code in new[] { "OPERATOR_RIGHT_MISSING", "SESSION_NOT_ACTIVE", "OPERATOR_SIGN_IN_FAILED" })
+            Assert.Contains(code, Description("pos_authorize"), StringComparison.Ordinal);
+        foreach (var (prefix, group) in new[] { ("pos_role", "posRole"), ("pos_operator", "posOperator") })
+            foreach (var operation in new[] { "create", "update" })
+            {
+                Assert.Contains("rule_list", Description($"{prefix}_{operation}"), StringComparison.Ordinal);
+                Assert.Contains(group, Description($"{prefix}_{operation}"), StringComparison.Ordinal);
+                Assert.Contains("NAME_TAKEN", Description($"{prefix}_{operation}"), StringComparison.Ordinal);
+            }
+        foreach (var name in new[] { "pos_role_get", "pos_operator_get" })
+            Assert.False(tools[name].InputSchema.TryGetProperty("required", out var required) && required.GetArrayLength() > 0, $"{name}: id and code are both optional.");
+    }
+
     // ---- spec 012, AC-12 and section 5 ----
 
     [Fact]
@@ -679,7 +728,7 @@ public class McpToolListTests(XerpFixture app)
     {
         var tools = await ListToolsAsync();
 
-        Assert.Equal(84, tools.Count);
+        Assert.Equal(100, tools.Count);
         AssertMetadata(tools, SpecP01Tools);
         AssertAnnotations(tools, SpecP01Tools);
         string Description(string name) => tools[name].Description ?? "";
@@ -713,7 +762,7 @@ public class McpToolListTests(XerpFixture app)
         // The literal list of AC-12: the 57 of spec 011 and these five.
         foreach (var name in new[] { "rule_list", "rule_get", "rule_set", "rule_reset", "rule_change_list" })
             Assert.Contains(name, tools.Keys);
-        Assert.Equal(84, tools.Count);
+        Assert.Equal(100, tools.Count);
         AssertMetadata(tools, Spec012Tools);
         AssertAnnotations(tools, Spec012Tools);
         // "rule_set, rule_reset not read-only, idempotent, not destructive."
