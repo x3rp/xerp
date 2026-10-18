@@ -1,7 +1,7 @@
 # POS module — overview
 
 Owner of this file: the architect. Written 2026-10-13 from `docs/pos/requirements.md` (the owner's list).
-Decisions: ADR-0022. Specs: `docs/specs/P01-sales-master-data.md`, `docs/specs/P02-operators-rights-pos-keys.md`.
+Decisions: ADR-0022. Specs: `docs/specs/P01-sales-master-data.md`, `docs/specs/P02-operators-rights-pos-keys.md`, `docs/specs/P03-modifiers-recipes.md`.
 
 The POS is a hospitality point of sale — tables, kitchen and bar, cash drawer, fiscal receipts — built **on**
 the ERP. It has a separate frontend, `xerp-pos` (its own repository, built by the orchestrator), which is a

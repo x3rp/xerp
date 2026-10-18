@@ -161,6 +161,22 @@ operator for 15 minutes; a session lasts at most 12 hours and belongs to the key
 manage keys or rules (all I2); an approver is a second operator who has the right (I8). New error codes:
 `OPERATOR_SIGN_IN_FAILED`, `SESSION_NOT_ACTIVE`, `OPERATOR_RIGHT_MISSING`.
 
+### Batch P03 — modifiers and recipes (spec P03, written)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `modifierGroup.codeChangeable`, `modifierOption.codeChangeable` | The code of a modifier group / option may be changed | `true` | As the `codeChangeable` rules of batch 013. |
+| `modifierGroup.nameUnique` | Names of modifier groups must be unique | `false` | As the `nameUnique` rules of batch 013. |
+| `modifierOption.nameUnique` | Names of options must be unique within their group | `false` | Yes: a same-named option in the same group is refused (`NAME_TAKEN`). |
+| `modifierOption.priceReductionAllowed` | An option may lower the price | `true` | No: a negative `priceDelta` is refused (`VALIDATION_FAILED`, key `priceDelta`). |
+
+5 rules; the registry then has 53. A group's `isRequired` and `allowsMultiple` are **data**, not rules.
+Invariants of the same spec (P03 §6.2): a recipe belongs to a `service` article or an option and its
+ingredients are `stock` articles (I8, `RECIPE_NOT_ALLOWED`, `ARTICLE_NOT_STOCKED`); recipe quantities are
+`> 0` in the ingredient's base unit, at most 200 ingredients, each once (I8, I10); an ingredient's base unit
+and type, and the type of an article with a recipe, are frozen while used (I6); bounds of `priceDelta`,
+`sortOrder` and of 20 groups per article (I10). New error code: `RECIPE_NOT_ALLOWED`.
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a

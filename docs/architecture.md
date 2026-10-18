@@ -202,7 +202,8 @@ Every non-2xx response under `/api/v1` is `application/problem+json` (RFC 9457) 
 | 409 | `INVALID_STATE` | Operation not allowed in the document's current status (e.g. replace, delete or post of a posted document; reversal of a draft, of a reversed or of a reversing document; replace of a confirmed order; close of a draft order). |
 | 409 | `INSUFFICIENT_STOCK` | Posting would take stock on hand below zero while `stock.negativeStockAllowed` is `false` (the default). `errors` has `lines[i].quantity` for the short lines. |
 | 409 | `STOCK_RESERVED` | With `sales.reservedStockProtected` = `true`: a posting or reversal would take goods that confirmed sales orders reserve (spec 012). `errors` has `lines[i].quantity`. |
-| 409 | `ARTICLE_NOT_STOCKED` | A stock document line names a `service` article. `errors` has `lines[i].articleId`. |
+| 409 | `ARTICLE_NOT_STOCKED` | A stock document line names a `service` article (`errors` has `lines[i].articleId`); or a recipe ingredient does (spec P03, `ingredients[i].articleId`). |
+| 409 | `RECIPE_NOT_ALLOWED` | A non-empty recipe was set on a `stock` article; recipes belong to `service` articles and modifier options (spec P03). `errors` has `ingredients`. |
 | 409 | `UNIT_IS_BASE_UNIT` | A unit conversion was set for the article's own base unit (spec 007). `errors` has `unitId`. |
 | 409 | `UNIT_NOT_ON_ARTICLE` | A document line's unit is neither the base unit nor an alternative unit of its article. `errors` has `lines[i].unitId`. |
 | 409 | `QUANTITY_NOT_CONVERTIBLE` | A line's quantity converts to a base quantity of zero or above the maximum. `errors` has `lines[i].quantity`. |
