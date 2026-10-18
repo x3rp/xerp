@@ -120,7 +120,7 @@ public class SalesMasterDataRuleTests
     [Fact]
     public void Registry_has_forty_rules_and_the_ten_of_P01_at_their_defaults()
     {
-        Assert.Equal(40, RuleRegistry.All.Count);
+        Assert.Equal(48, RuleRegistry.All.Count);
         Assert.True(RuleRegistry.ArticleBarcodeUnique.Default);
         Assert.All(RuleRegistry.SalesDataRequiredFields.Values, r => Assert.False(r.Default));
         Assert.Equal(["categoryId", "taxRateIds", "salesPrice"], RuleRegistry.SalesDataRequiredFields.Keys);

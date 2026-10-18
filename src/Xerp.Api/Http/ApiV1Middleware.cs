@@ -89,8 +89,16 @@ public sealed class ApiV1Middleware(RequestDelegate next)
     /// <summary>The route matched an endpoint of this method, and the allow-list does not name it.</summary>
     private static bool IsOutsidePosWork(HttpContext context)
     {
-        if (context.GetEndpoint() is not RouteEndpoint { RoutePattern.RawText: { } template } endpoint)
+        if (context.GetEndpoint() is not RouteEndpoint endpoint)
             return false;
+        // Built from the parsed segments: RawText of an endpoint mapped in a group does not hold the whole path.
+        var template = "/" + string.Join("/", endpoint.RoutePattern.PathSegments.Select(segment => string.Concat(segment.Parts.Select(part => part switch
+        {
+            Microsoft.AspNetCore.Routing.Patterns.RoutePatternLiteralPart literal => literal.Content,
+            Microsoft.AspNetCore.Routing.Patterns.RoutePatternParameterPart parameter => "{" + parameter.Name + "}",
+            Microsoft.AspNetCore.Routing.Patterns.RoutePatternSeparatorPart separator => separator.Content,
+            _ => "",
+        }))));
         var methods = endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods;
         if (methods is null || !methods.Contains(context.Request.Method, StringComparer.OrdinalIgnoreCase))
             return false;

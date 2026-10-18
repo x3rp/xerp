@@ -31,9 +31,9 @@ public class ConfigurableRuleTests
     // ---- the registry (R1, R4; ADR-0020, decision 2)
 
     [Fact]
-    public void R1_The_registry_has_exactly_the_forty_rules_ordered_by_key_with_their_defaults()
+    public void R1_The_registry_has_exactly_the_forty_eight_rules_ordered_by_key_with_their_defaults()
     {
-        // Spec 013, R1 and AC-10: the six of spec 012 and the 24 of the masters; spec P01, AC-10: ten more (P01/AC-01, item 1).
+        // Spec 013, R1 and AC-10: the six of spec 012 and the 24 of the masters; spec P01, AC-10: ten more (P01/AC-01, item 1); spec P02, AC-10: eight more (P02/AC-01, item 1).
         Assert.Equal(
             [
                 ("article.barcodeUnique", true),
@@ -58,6 +58,14 @@ public class ConfigurableRuleTests
                 ("partner.taxIdUnique", false),
                 ("paymentMethod.codeChangeable", true),
                 ("paymentMethod.nameUnique", false),
+                ("pos.operatorOnSeveralDevicesAllowed", true),
+                ("pos.secondOperatorApprovalAllowed", true),
+                ("pos.severalOperatorsPerDeviceAllowed", true),
+                ("posOperator.codeChangeable", true),
+                ("posOperator.nameUnique", false),
+                ("posOperator.roleRequired", true),
+                ("posRole.codeChangeable", true),
+                ("posRole.nameUnique", false),
                 ("purchase.overReceiptAllowed", false),
                 ("purchase.partnerRequired", true),
                 ("sales.overDeliveryAllowed", false),

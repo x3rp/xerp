@@ -403,7 +403,7 @@ public static class ToolCatalog
             "Creates a POS operator (a member of staff who signs in on a till with code and PIN) and returns it with its `id`; the PIN is stored only as a salted hash. "
             + "Two operators may have the same PIN. " + Validation + " " + CodeTaken
             + " `REFERENCE_NOT_FOUND`: `roleId` names no POS role of this tenant. `REFERENCE_INACTIVE`: that role is inactive." + MasterRules("posOperator", update: false),
-            Input(["code", "name", "roleId", "pin"], OperatorFields(update: false)),
+            Input(["code", "name", "pin"], OperatorFields(update: false)),
             (services, input, ct) => services.GetRequiredService<PosOperatorOperations>().CreateAsync(input, ct)),
 
         XerpTool.WithId<ReplacePosOperatorInput, PosOperatorDto>("pos_operator_update", ToolKind.Update,
