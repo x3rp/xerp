@@ -49,7 +49,7 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
 | P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | P02 | Djelatnici (šifra i PIN), ovlasti za osjetljive radnje, API ključ samo za POS | ✅ | ✅ | ✅ | ✅ | ✅ |
-| P03 | Opcije i dodaci artikala; normativi | ✅ | 🔄 | 🔄 | ⬜ | ⬜ |
+| P03 | Opcije i dodaci artikala; normativi | ✅ | ✅ | 🔄 | ⬜ | ⬜ |
 | P04 | POS mjesto, jelovnik, raspored tipki, jedno čitanje jelovnika za frontend | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 | P05 | Račun: otvaranje, stavke, napomene, otvorena narudžba, nastavak; verzija; ključevi idempotentnosti | ✅ | 🔄 | ⬜ | ⬜ | ⬜ |
 | P05a | Promjena cijene, popusti, storno s razlogom | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
