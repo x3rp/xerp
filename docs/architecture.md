@@ -85,6 +85,9 @@ Rules:
   external web client (e.g. OIDC mapped to the same actor model) is not planned here until that project asks for it.
 - Agents may post documents by default (owner answered "yes"; interpreted as "agents may post by default"),
   restrictable per key once permissions exist. Until permissions exist, every tenant key can do everything inside its tenant.
+- Key scope (spec P02): a key is `full` (every key until P02, and the default) or `pos`, fixed at creation. A `pos`
+  key may only do POS work (P02/R32) and can never manage keys or rules. POS operators (waiters) are not keys:
+  they sign in with code and PIN into a session bound to the key (ADR-0022/6).
 
 ## 5. HTTP API conventions
 
@@ -181,7 +184,8 @@ Every non-2xx response under `/api/v1` is `application/problem+json` (RFC 9457) 
 |---|---|---|
 | 400 | `VALIDATION_FAILED` | Malformed JSON, unknown property, or field rule violated — anything decidable from the request alone. `errors` maps camelCase field name -> messages. |
 | 401 | `UNAUTHENTICATED` | Missing, malformed, unknown or disabled credential. Sent with `WWW-Authenticate: Bearer`. |
-| 403 | `FORBIDDEN` | Valid credential, operation not allowed for it. |
+| 403 | `FORBIDDEN` | Valid credential, operation not allowed for it (also: a `pos`-scope key outside the allow-list of spec P02). |
+| 403 | `OPERATOR_RIGHT_MISSING` | Neither the session's POS operator nor the approver has the right the act needs (spec P02). `errors` has `right` / `approverCode`; with `rules` when `pos.secondOperatorApprovalAllowed` refused it. |
 | 404 | `NOT_FOUND` | No such record in this tenant (also: other tenant's record, malformed id), no such path, or method not supported on the path. |
 | 409 | `CODE_TAKEN` | Unique code already used in this tenant. |
 | 409 | `CODE_CHANGE_NOT_ALLOWED` | With `<m>.codeChangeable` = `false`: a replace would change the code of a unit, article, partner or warehouse (spec 013), or of an article category, tax rate or payment method (spec P01). `errors` has `code`. |
@@ -192,6 +196,8 @@ Every non-2xx response under `/api/v1` is `application/problem+json` (RFC 9457) 
 | 409 | `REFERENCE_NOT_FOUND` | A `<role>Id` in the body is well-formed but no such record exists in this tenant (also: other tenant's record). `errors` has the field's key. |
 | 409 | `REFERENCE_INACTIVE` | A `<role>Id` in the body points at an inactive record that is being newly assigned. `errors` has the field's key. |
 | 409 | `CANNOT_REVOKE_SELF` | An API key tried to revoke itself. |
+| 409 | `OPERATOR_SIGN_IN_FAILED` | POS operator sign-in or approval failed: unknown code, wrong PIN, inactive or locked operator — one answer for all (spec P02). `errors` has `pin` / `approverPin`. |
+| 409 | `SESSION_NOT_ACTIVE` | The named POS operator session is ended or expired (spec P02). `errors` has `sessionId`. |
 | 409 | `DEFAULT_WAREHOUSE` | The operation would leave the tenant without an active default warehouse: delete or deactivation of the default warehouse, or making an inactive warehouse the default (spec 011). `errors` has `isActive` except on delete. |
 | 409 | `INVALID_STATE` | Operation not allowed in the document's current status (e.g. replace, delete or post of a posted document; reversal of a draft, of a reversed or of a reversing document; replace of a confirmed order; close of a draft order). |
 | 409 | `INSUFFICIENT_STOCK` | Posting would take stock on hand below zero while `stock.negativeStockAllowed` is `false` (the default). `errors` has `lines[i].quantity` for the short lines. |

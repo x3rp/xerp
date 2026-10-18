@@ -142,6 +142,25 @@ and "an article lists a barcode once" (I8, definitions). New error code: `BARCOD
 `barcode`; with `rules` only when `article.barcodeUnique` refused it). POS rules (group `pos`) are added by specs P02–P12
 (ADR-0022/7).
 
+### Batch P02 — operators, rights, POS-only keys (spec P02, written)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `posRole.codeChangeable`, `posOperator.codeChangeable` | The code of a POS role / an operator may be changed | `true` | As the `codeChangeable` rules of batch 013. |
+| `posRole.nameUnique`, `posOperator.nameUnique` | Names of POS roles / operators must be unique | `false` | As the `nameUnique` rules of batch 013. |
+| `posOperator.roleRequired` | Role required on an operator | `true` | No: an operator may have no role, and then has no rights. |
+| `pos.secondOperatorApprovalAllowed` | A sensitive act may be approved by a second operator | `true` | No: only the operator's own rights count (`OPERATOR_RIGHT_MISSING`). |
+| `pos.severalOperatorsPerDeviceAllowed` | Several operators may be signed in on one device at once | `true` | No: a sign-in ends the key's other sessions. |
+| `pos.operatorOnSeveralDevicesAllowed` | An operator may be signed in on several devices at once | `true` | No: a sign-in ends the operator's sessions on other keys. |
+
+8 rules; the registry then has 48. Operator rights (seven booleans on a role) are **data, not rules**
+(ADR-0022/7). Invariants of the same spec (P02 §6.2), proposed for the owner's approval: a PIN is 4–8 ASCII
+digits (I9, I10); PINs are stored as a salted slow hash and never returned or logged; five failed PINs lock an
+operator for 15 minutes; a session lasts at most 12 hours and belongs to the key that started it; a key's
+`scope` (`full` / `pos`) never changes and a `pos` key is limited to the allow-list of P02/R32 and can never
+manage keys or rules (all I2); an approver is a second operator who has the right (I8). New error codes:
+`OPERATOR_SIGN_IN_FAILED`, `SESSION_NOT_ACTIVE`, `OPERATOR_RIGHT_MISSING`.
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a

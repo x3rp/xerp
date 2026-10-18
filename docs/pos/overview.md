@@ -1,7 +1,7 @@
 # POS module — overview
 
 Owner of this file: the architect. Written 2026-10-13 from `docs/pos/requirements.md` (the owner's list).
-Decisions: ADR-0022. First spec: `docs/specs/P01-sales-master-data.md`.
+Decisions: ADR-0022. Specs: `docs/specs/P01-sales-master-data.md`, `docs/specs/P02-operators-rights-pos-keys.md`.
 
 The POS is a hospitality point of sale — tables, kitchen and bar, cash drawer, fiscal receipts — built **on**
 the ERP. It has a separate frontend, `xerp-pos` (its own repository, built by the orchestrator), which is a
@@ -172,7 +172,7 @@ Each has a default the specs use until the owner says otherwise.
 | 3 | One stock issue per bill, or one per shift? | Per bill, in the payment's transaction. | P07 |
 | 4 | Sales prices include tax? | Yes: one price per article, tax-inclusive. Price lists (second price level, happy hour, net prices for companies) later. | P01, P04 |
 | 5 | Several taxes on one article (VAT and the local consumption tax on drinks)? | Yes: an article has zero to four tax rates, all computed on the same net base. | P01, P07, P11 |
-| 6 | Is a device's API key limited to POS operations? Today every key can do everything, including changing rules and prices (021 deferred). | Not limited. **Recommended: a "POS only" key in P02.** | P02 |
+| 6 | Is a device's API key limited to POS operations? Today every key can do everything, including changing rules and prices (021 deferred). | Not limited. **Recommended: a "POS only" key in P02.** P02 builds it as an opt-in key `scope`; existing keys stay unlimited. | P02 |
 | 7 | May an agent (MCP) act as an operator? | Yes, with an operator's code and PIN, like a person. | P02 |
 | 8 | Fiscalisation: who signs and sends — the backend (the tenant's certificate is stored on the server) or the device? Which rules apply at go-live (the current regime or the 2026 one), and is offline issue allowed at all? | Backend, from an outbox, after the payment commits. **The legal details are not verified by the architect and must be confirmed with an accountant before P11.** | P07 (receipt number: premises / device / sequence), P11, P12 |
 | 9 | Receipt for a company (buyer's tax id on the receipt)? | Optional partner on the bill; no e-invoice. | P07 |
