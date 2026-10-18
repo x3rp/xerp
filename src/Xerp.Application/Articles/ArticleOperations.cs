@@ -210,6 +210,10 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
                 if (await IsUsedAsync(id, ct))
                     return InUse();
                 db.ArticleUnits.RemoveRange(await db.ArticleUnits.Where(c => c.ArticleId == id).ToListAsync(ct));
+                // Spec P01, R14: its sales data, tax-rate links and barcodes go with it; none makes it IN_USE.
+                db.ArticleTaxRates.RemoveRange(await db.ArticleTaxRates.Where(l => l.ArticleId == id).ToListAsync(ct));
+                db.ArticleSalesData.RemoveRange(await db.ArticleSalesData.Where(s => s.ArticleId == id).ToListAsync(ct));
+                db.ArticleBarcodes.RemoveRange(await db.ArticleBarcodes.Where(b => b.ArticleId == id).ToListAsync(ct));
                 db.Articles.Remove(article);
                 await db.SaveChangesAsync(ct);
                 return new ArticleDeleted();

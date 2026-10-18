@@ -50,4 +50,12 @@ public readonly record struct RequiredFields(TenantRules Rules, IReadOnlyDiction
         if (Table.TryGetValue(field, out var rule) && !errors.Has(field) && MasterDataRules.RequiredFieldMissing(Rules[rule], value))
             errors.Add(field, $"{field} is required: this company's rule {rule.Key} is true.", rule, true);
     }
+
+    /// <summary>As <see cref="Check"/> for a member that is not a text (spec P01, R10): a reference, a number or a list.</summary>
+    /// <param name="missing">Whether the member has no value: null, or a list without elements.</param>
+    public void CheckValue(ValidationErrors errors, string field, bool missing)
+    {
+        if (Table.TryGetValue(field, out var rule) && !errors.Has(field) && MasterDataRules.RequiredValueMissing(Rules[rule], missing))
+            errors.Add(field, $"{field} is required: this company's rule {rule.Key} is true.", rule, true);
+    }
 }

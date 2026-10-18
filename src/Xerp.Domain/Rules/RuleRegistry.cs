@@ -109,14 +109,56 @@ public static class RuleRegistry
         + "Duplicates that already exist stay; each is judged at its own next replace, which is refused until one of the two has another tax id.",
         Default: false);
 
+    /// <summary>The master-data rules of article categories (spec P01, 6.1).</summary>
+    public static readonly MasterRuleSet ArticleCategory = Master("articleCategory", "article category", "article categories", "article_category");
+
+    /// <summary>The master-data rules of tax rates (spec P01, 6.1).</summary>
+    public static readonly MasterRuleSet TaxRate = Master("taxRate", "tax rate", "tax rates", "tax_rate");
+
+    /// <summary>The master-data rules of payment methods (spec P01, 6.1).</summary>
+    public static readonly MasterRuleSet PaymentMethod = Master("paymentMethod", "payment method", "payment methods", "payment_method");
+
+    public static readonly RuleDefinition ArticleCategoryRequired = SalesDataRequired(
+        "article.categoryRequired", "Category", "a category: categoryId null");
+
+    public static readonly RuleDefinition ArticleTaxRateRequired = SalesDataRequired(
+        "article.taxRateRequired", "Tax rate", "a tax rate: taxRateIds empty");
+
+    public static readonly RuleDefinition ArticleSalesPriceRequired = SalesDataRequired(
+        "article.salesPriceRequired", "Sales price", "a price: salesPrice null (0 is a price)");
+
+    /// <summary>
+    /// By request field of <c>article_sales_data_set</c>, the rule that makes that member required (spec P01,
+    /// R10): a table, as <see cref="MasterRuleSet.RequiredFields"/> is.
+    /// </summary>
+    public static IReadOnlyDictionary<string, RuleDefinition> SalesDataRequiredFields { get; } = new Dictionary<string, RuleDefinition>(StringComparer.Ordinal)
+    {
+        ["categoryId"] = ArticleCategoryRequired,
+        ["taxRateIds"] = ArticleTaxRateRequired,
+        ["salesPrice"] = ArticleSalesPriceRequired,
+    };
+
+    public static readonly RuleDefinition ArticleBarcodeUnique = new(
+        "article.barcodeUnique",
+        "A barcode may belong to only one article",
+        "Judges adding a barcode to an article (article_barcode_create). "
+        + "When true, a barcode another article already has is refused with BARCODE_TAKEN; barcodes are compared exactly and case-sensitively, and barcodes of inactive articles count. "
+        + "When false, several articles may have the same barcode, and the lookup (article_barcode_list with barcode) returns all of them. "
+        + "An article never lists one barcode twice, whatever the value. After a change back to true, duplicates that already exist stay and are all returned; only the next create is judged.",
+        Default: true);
+
     /// <summary>The four masters, each with its rules.</summary>
     public static IReadOnlyList<MasterRuleSet> Masters { get; } = [Uom, Article, Partner, Warehouse];
+
+    /// <summary>The three sales masters of spec P01, each with its rules.</summary>
+    public static IReadOnlyList<MasterRuleSet> SalesMasters { get; } = [ArticleCategory, TaxRate, PaymentMethod];
 
     /// <summary>Every rule, ordered by key (ordinal): the order of every listing (spec 012, R2).</summary>
     public static IReadOnlyList<RuleDefinition> All { get; } = ((RuleDefinition[])
         [
             NegativeStockAllowed, OverReceiptAllowed, OverDeliveryAllowed, ReservedStockProtected, PurchasePartnerRequired, SalesPartnerRequired,
             PartnerRoleRequired, PartnerTaxIdUnique, .. Masters.SelectMany(m => m.All),
+            ArticleCategoryRequired, ArticleTaxRateRequired, ArticleSalesPriceRequired, ArticleBarcodeUnique, .. SalesMasters.SelectMany(m => m.All),
         ])
         .OrderBy(r => r.Key, StringComparer.Ordinal)
         .ToList();
@@ -168,6 +210,17 @@ public static class RuleRegistry
             StringComparer.Ordinal);
         return new MasterRuleSet(codeChangeable, nameUnique, required);
     }
+
+    /// <summary>A rule that makes a member of an article's sales data required (spec P01, 6.1, R10).</summary>
+    /// <param name="without">What the refused request lacks, with the value that says so.</param>
+    private static RuleDefinition SalesDataRequired(string key, string label, string without) => new(
+        key,
+        $"{label} required in an article's sales data",
+        "Judges setting the sales data of an article (article_sales_data_set); creating and replacing an article are never judged by it. "
+        + "When false, the member is optional. "
+        + $"When true, sales data saved without {without} is refused with VALIDATION_FAILED. "
+        + "Sales data that already exists is not judged again: an article without it stays valid and readable, and its next set must give it.",
+        Default: false);
 
     private static string WithArticle(string noun) => (noun[0] is 'a' or 'e' or 'i' or 'o' ? "an " : "a ") + noun;
 }

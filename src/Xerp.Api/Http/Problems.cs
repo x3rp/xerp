@@ -34,7 +34,7 @@ public static class Problems
             or ErrorCodes.CountOutdated or ErrorCodes.PartnerRoleMissing or ErrorCodes.OrderNotOpen
             or ErrorCodes.OrderMismatch or ErrorCodes.QuantityExceedsOrder
             or ErrorCodes.DefaultWarehouse or ErrorCodes.StockReserved
-            or ErrorCodes.CodeChangeNotAllowed or ErrorCodes.NameTaken or ErrorCodes.TaxIdTaken => StatusCodes.Status409Conflict,
+            or ErrorCodes.CodeChangeNotAllowed or ErrorCodes.NameTaken or ErrorCodes.TaxIdTaken or ErrorCodes.BarcodeTaken => StatusCodes.Status409Conflict,
         ErrorCodes.PayloadTooLarge => StatusCodes.Status413PayloadTooLarge,
         _ => StatusCodes.Status500InternalServerError,
     };

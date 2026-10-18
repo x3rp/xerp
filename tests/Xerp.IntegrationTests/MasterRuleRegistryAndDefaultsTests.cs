@@ -24,7 +24,7 @@ public class MasterRuleRegistryAndDefaultsTests(XerpFixture app)
 
         var list = await Rules.ListAsync(tenant.Client, "?limit=500");
 
-        Assert.Equal(30, list.Total());
+        Assert.Equal(40, list.Total());
         // The literal inventory is in RuleRegistryTests (012 AC-20, 013 AC-10); Rules.All is pinned to it there.
         Assert.Equal(Rules.All, list.RuleKeys());
         Assert.Equal(24, MasterRules.Keys.Distinct().Count());
@@ -48,7 +48,7 @@ public class MasterRuleRegistryAndDefaultsTests(XerpFixture app)
     [Theory]
     [InlineData("partner", 11)]
     [InlineData("uom", 2)]
-    [InlineData("article", 3)]
+    [InlineData("article", 7)] // 3 of spec 013 and 4 of spec P01 (P01 AC-01, item 2)
     [InlineData("warehouse", 8)]
     public async Task AC11_The_group_filter_returns_the_rules_of_one_master(string group, int count)
     {

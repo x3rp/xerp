@@ -9,6 +9,7 @@ using Xerp.Domain.Inventory;
 using Xerp.Domain.Orders;
 using Xerp.Domain.Partners;
 using Xerp.Domain.Rules;
+using Xerp.Domain.Sales;
 using Xerp.Domain.Tenancy;
 
 namespace Xerp.Infrastructure.Persistence;
@@ -26,6 +27,12 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<ArticleUnit> ArticleUnits => Set<ArticleUnit>();
     public DbSet<Partner> Partners => Set<Partner>();
+    public DbSet<ArticleCategory> ArticleCategories => Set<ArticleCategory>();
+    public DbSet<TaxRate> TaxRates => Set<TaxRate>();
+    public DbSet<PaymentMethod> PaymentMethods => Set<PaymentMethod>();
+    public DbSet<ArticleSalesData> ArticleSalesData => Set<ArticleSalesData>();
+    public DbSet<ArticleTaxRate> ArticleTaxRates => Set<ArticleTaxRate>();
+    public DbSet<ArticleBarcode> ArticleBarcodes => Set<ArticleBarcode>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<StockDocument> StockDocuments => Set<StockDocument>();
     public DbSet<StockDocumentLine> StockDocumentLines => Set<StockDocumentLine>();
@@ -143,6 +150,69 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne<ApiKey>().WithMany()
                 .HasForeignKey(c => new { c.TenantId, c.UpdatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Spec P01, section 3: three masters shaped as a unit of measure. No index on a name: whether names are
+        // unique is a tenant's rule (spec 013, section 3).
+        MapCodedMaster<ArticleCategory>(modelBuilder, "ArticleCategories");
+        MapCodedMaster<TaxRate>(modelBuilder, "TaxRates");
+        MapCodedMaster<PaymentMethod>(modelBuilder, "PaymentMethods");
+        modelBuilder.Entity<TaxRate>().Property(t => t.Rate).HasPrecision(7, SalesDataRules.RateDecimalPlaces);
+        modelBuilder.Entity<PaymentMethod>().Property(m => m.Kind)
+            .HasMaxLength(10).HasConversion(v => v.ToName(), v => PaymentMethodKindNames.Parse(v));
+
+        // At most one row per article; the article's sales data is deleted with it by the application (R14).
+        modelBuilder.Entity<ArticleSalesData>(e =>
+        {
+            e.ToTable("ArticleSalesData");
+            e.HasKey(s => new { s.TenantId, s.ArticleId });
+            e.Property(s => s.SalesPrice).HasPrecision(15, SalesDataRules.SalesPriceDecimalPlaces);
+            e.HasOne<Article>().WithMany()
+                .HasForeignKey(s => new { s.TenantId, s.ArticleId })
+                .HasPrincipalKey(a => new { a.TenantId, a.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            // Its index (TenantId, CategoryId) also serves "articles by category" and "is this category used".
+            e.HasOne<ArticleCategory>().WithMany()
+                .HasForeignKey(s => new { s.TenantId, s.CategoryId })
+                .HasPrincipalKey(c => new { c.TenantId, c.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(s => new { s.TenantId, s.UpdatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ArticleTaxRate>(e =>
+        {
+            e.ToTable("ArticleTaxRates");
+            e.HasKey(l => new { l.TenantId, l.ArticleId, l.TaxRateId });
+            e.HasOne<Article>().WithMany()
+                .HasForeignKey(l => new { l.TenantId, l.ArticleId })
+                .HasPrincipalKey(a => new { a.TenantId, a.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<TaxRate>().WithMany()
+                .HasForeignKey(l => new { l.TenantId, l.TaxRateId })
+                .HasPrincipalKey(t => new { t.TenantId, t.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Unique within an article only: across articles it is the rule article.barcodeUnique, which no index
+        // can hold. Collation "C": barcodes are compared and ordered by their characters' codes (R19).
+        modelBuilder.Entity<ArticleBarcode>(e =>
+        {
+            e.ToTable("ArticleBarcodes");
+            e.Property(b => b.Id).ValueGeneratedNever();
+            e.Property(b => b.Barcode).HasMaxLength(SalesDataRules.BarcodeMaxLength).UseCollation("C");
+            e.HasIndex(b => new { b.TenantId, b.ArticleId, b.Barcode }).IsUnique();
+            e.HasIndex(b => new { b.TenantId, b.Barcode });
+            e.HasOne<Article>().WithMany()
+                .HasForeignKey(b => new { b.TenantId, b.ArticleId })
+                .HasPrincipalKey(a => new { a.TenantId, a.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(b => new { b.TenantId, b.CreatedBy })
                 .HasPrincipalKey(k => new { k.TenantId, k.Id })
                 .OnDelete(DeleteBehavior.Restrict);
         });
@@ -395,6 +465,27 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => typeof(ITenantOwned).IsAssignableFrom(t.ClrType)).ToList())
             configure.MakeGenericMethod(entityType.ClrType).Invoke(this, [modelBuilder]);
     }
+
+    /// <summary>A master with a code, a name and the audit columns, as a unit of measure is mapped.</summary>
+    private static void MapCodedMaster<T>(ModelBuilder modelBuilder, string table) where T : CodedMaster =>
+        modelBuilder.Entity<T>(e =>
+        {
+            e.ToTable(table);
+            e.Property(m => m.Id).ValueGeneratedNever();
+            e.Property(m => m.Code).HasMaxLength(CodeRules.MaxLength);
+            e.Property(m => m.Name).HasMaxLength(NameRules.MaxLength);
+            e.Property<string>(DbNames.CodeLower).HasComputedColumnSql("lower(\"Code\")", stored: true);
+            e.HasIndex(nameof(CodedMaster.TenantId), DbNames.CodeLower).IsUnique();
+            // The audit columns point at keys of the same tenant: the foreign keys include TenantId.
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(m => new { m.TenantId, m.CreatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(m => new { m.TenantId, m.UpdatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
     /// <summary>An address is six plain columns of the owning table (ADR-0011, decision 3).</summary>
     private static void MapAddress(ComplexPropertyBuilder<Address> address)

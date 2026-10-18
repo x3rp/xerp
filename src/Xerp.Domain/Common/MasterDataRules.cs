@@ -10,7 +10,13 @@ public static class MasterDataRules
     /// R5: with the field's rule true, a write without the field is refused. <paramref name="value"/> is the
     /// normalised one: omitted, null, empty and whitespace-only are all null (ADR-0011, decision 7).
     /// </summary>
-    public static bool RequiredFieldMissing(bool required, string? value) => required && value is null;
+    public static bool RequiredFieldMissing(bool required, string? value) => RequiredValueMissing(required, value is null);
+
+    /// <summary>
+    /// As <see cref="RequiredFieldMissing"/> for a member that is not a text (spec P01, R10): a reference, a
+    /// number, a list. The caller says whether the value is missing - null, or a list without elements.
+    /// </summary>
+    public static bool RequiredValueMissing(bool required, bool missing) => required && missing;
 
     /// <summary>
     /// R9: with <c>codeChangeable</c> false, a replace whose code differs from the stored one is refused. Both

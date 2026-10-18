@@ -31,14 +31,20 @@ public class ConfigurableRuleTests
     // ---- the registry (R1, R4; ADR-0020, decision 2)
 
     [Fact]
-    public void R1_The_registry_has_exactly_the_thirty_rules_ordered_by_key_with_their_defaults()
+    public void R1_The_registry_has_exactly_the_forty_rules_ordered_by_key_with_their_defaults()
     {
-        // Spec 013, R1 and AC-10: the six of spec 012 and the 24 of the masters.
+        // Spec 013, R1 and AC-10: the six of spec 012 and the 24 of the masters; spec P01, AC-10: ten more (P01/AC-01, item 1).
         Assert.Equal(
             [
+                ("article.barcodeUnique", true),
+                ("article.categoryRequired", false),
                 ("article.codeChangeable", true),
                 ("article.descriptionRequired", false),
                 ("article.nameUnique", false),
+                ("article.salesPriceRequired", false),
+                ("article.taxRateRequired", false),
+                ("articleCategory.codeChangeable", true),
+                ("articleCategory.nameUnique", false),
                 ("partner.addressLine1Required", false),
                 ("partner.addressLine2Required", false),
                 ("partner.cityRequired", false),
@@ -50,12 +56,16 @@ public class ConfigurableRuleTests
                 ("partner.roleRequired", true),
                 ("partner.taxIdRequired", false),
                 ("partner.taxIdUnique", false),
+                ("paymentMethod.codeChangeable", true),
+                ("paymentMethod.nameUnique", false),
                 ("purchase.overReceiptAllowed", false),
                 ("purchase.partnerRequired", true),
                 ("sales.overDeliveryAllowed", false),
                 ("sales.partnerRequired", true),
                 ("sales.reservedStockProtected", false),
                 ("stock.negativeStockAllowed", false),
+                ("taxRate.codeChangeable", true),
+                ("taxRate.nameUnique", false),
                 ("uom.codeChangeable", true),
                 ("uom.nameUnique", false),
                 ("warehouse.addressLine1Required", false),

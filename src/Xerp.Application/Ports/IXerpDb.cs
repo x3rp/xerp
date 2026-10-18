@@ -4,6 +4,7 @@ using Xerp.Domain.Inventory;
 using Xerp.Domain.Orders;
 using Xerp.Domain.Partners;
 using Xerp.Domain.Rules;
+using Xerp.Domain.Sales;
 using Xerp.Domain.Tenancy;
 
 namespace Xerp.Application.Ports;
@@ -20,6 +21,15 @@ public interface IXerpDb
     DbSet<Article> Articles { get; }
     DbSet<ArticleUnit> ArticleUnits { get; }
     DbSet<Partner> Partners { get; }
+    DbSet<ArticleCategory> ArticleCategories { get; }
+    DbSet<TaxRate> TaxRates { get; }
+    DbSet<PaymentMethod> PaymentMethods { get; }
+
+    /// <summary>At most one row per article (spec P01, section 3): an article without one has empty sales data.</summary>
+    DbSet<ArticleSalesData> ArticleSalesData { get; }
+
+    DbSet<ArticleTaxRate> ArticleTaxRates { get; }
+    DbSet<ArticleBarcode> ArticleBarcodes { get; }
     DbSet<Warehouse> Warehouses { get; }
     DbSet<StockDocument> StockDocuments { get; }
     DbSet<StockDocumentLine> StockDocumentLines { get; }
