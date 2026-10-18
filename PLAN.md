@@ -48,8 +48,8 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
 | P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| P02 | Djelatnici (šifra i PIN), ovlasti za osjetljive radnje, API ključ samo za POS | ✅ | 🔄 | 🔄 | ⬜ | ⬜ |
-| P03 | Opcije i dodaci artikala; normativi | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P02 | Djelatnici (šifra i PIN), ovlasti za osjetljive radnje, API ključ samo za POS | ✅ | ✅ | ✅ | ✅ | ✅ |
+| P03 | Opcije i dodaci artikala; normativi | ✅ | 🔄 | 🔄 | ⬜ | ⬜ |
 | P04 | POS mjesto, jelovnik, raspored tipki, jedno čitanje jelovnika za frontend | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | P05 | Račun: otvaranje, stavke, napomene, otvorena narudžba, nastavak; verzija; ključevi idempotentnosti | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | P05a | Promjena cijene, popusti, storno s razlogom | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -76,9 +76,9 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 
 ## Što tko trenutno radi
 
-- **Arhitekt:** specovi P03 i P04 napisani; zaustavljen do reviewa P02.
-- **Builder:** implementira P02 na `feat/P02-operators-rights-pos-keys`.
-- **Tester:** piše testove prihvaćanja za P02.
+- **Arhitekt:** review P02 OK; čeka review P03.
+- **Builder:** implementira P03 na `feat/P03-modifiers-recipes`.
+- **Tester:** piše testove prihvaćanja za P03.
 
 ## Dnevnik
 
@@ -139,6 +139,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-18 — spec P03 commitan (grupe opcija i opcije s doplatom, normativi usluga i opcija, 5 pravila, 16 alata).
 - 2026-10-18 — spec P04 commitan (POS mjesta, jelovnici sa stranicama i rešetkom tipki, jedno čitanje jelovnika s ETag-om, traženje po nazivu/šifri/barkodu; 8 pravila, 14 alata).
 - 2026-10-18 — orkestrator napravio `xerp-pos` (zaseban repozitorij, lokalno `8b40b5c`, bez remotea): spajanje uređaja, jelovnik iz P04 ili iz kategorija (P01), PIN prijava (P02), račun s opcijama i napomenama, otvoreni računi u pregledniku do P05, traženje i čitač barkoda, naplata s povratom, predračun 80 mm; `seed.py` pravi probni kafić.
+- 2026-10-18 — review P02: tražene 2 male izmjene koda (whoami za POS ključ, pos_authorize nije samo čitanje) i 3 testa (AC-60 bio pogrešan); unio orkestrator na `close/P02`; 785 unit + 2147 integracijskih, svi prolaze; ponovni review OK; P02 spojen u `main` i pushan. Tester i builder kreću na P03.
 
 ## Odluke vlasnika
 
