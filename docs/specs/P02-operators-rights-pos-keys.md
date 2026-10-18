@@ -133,7 +133,7 @@ at all.
 ### 4.D API key scope (amends spec 003)
 
 - `POST /api-keys` body `{ "name", "actorType", "scope"? }`; `scope` is `full` (omitted = `full`) or `pos`.
-- The ApiKey representation gains `"scope"`; `GET /api-keys` gains the filter `scope=`.
+- The ApiKey representation gains `"scope"`; `GET /api-keys` gains the filter `scope=`; an empty value is absent, another value -> `400`, key `scope` *(P02-q Q3)*.
 - `scope` cannot change (there is no operation that would change it). Revocation is unchanged.
 
 ### 4.E New error codes (registry: architecture §6)
@@ -163,6 +163,14 @@ returns the 84 names of P01 and these 16:
 | `pos_session_list` | `{ status?, limit?, offset? }` | list envelope |
 | `pos_session_end` | `{ id }` | Session |
 | `pos_authorize` | `{ sessionId, right, approverCode?, approverPin? }` | the authorize result |
+
+Annotations *(amended after review, P02-q Q2)*: the ten master tools as P01; `pos_operator_set_pin` as an
+update (`readOnlyHint` false, `destructiveHint` true, `idempotentHint` true); `pos_session_start` as a create
+(`readOnlyHint` false, `destructiveHint` false, `idempotentHint` false); `pos_session_end` repeatable
+(`readOnlyHint` false, `destructiveHint` false, `idempotentHint` true); `pos_session_get` and
+`pos_session_list` read-only; **`pos_authorize` is not read-only**: `readOnlyHint` false, `destructiveHint`
+false, `idempotentHint` false — with an approver it counts failed PINs and can lock that operator (R11, R21),
+so a client must not run it unasked as a read.
 
 A PIN is an **input** of three tools and never part of any tool result (ADR-0010/5 forbids secrets in
 results; an agent that acts as an operator must send its PIN, owner decision 7 of the overview *(default:
@@ -283,7 +291,9 @@ when a rule changes (012/R15).
     (it may read them: the sign-in screen lists operators);
   - `GET` only: `/articles` and `/articles/{id}`, `/articles/by-code/{code}`, `/articles/{id}/sales-data`,
     `/articles/sales-data`, `/article-barcodes`, `/article-categories`, `/tax-rates`, `/payment-methods`,
-    `/units-of-measure`, `/warehouses`, `/partners`, `/rules` — with their `{id}` and `by-code` forms.
+    `/units-of-measure`, `/warehouses`, `/partners`, `/rules` — with their `{id}` and `by-code` forms;
+    and `GET /whoami` *(amended after review, P02-q Q1: the caller's own tenant and key; every agent is told to
+    call it first)*.
   Later specs: a new route under `/api/v1/pos/` is on the list unless its spec says otherwise; a new route
   elsewhere is not.
 - R33. MCP: the tools that map to the operations of R32. `tools/list` for a `pos` key returns exactly them.
