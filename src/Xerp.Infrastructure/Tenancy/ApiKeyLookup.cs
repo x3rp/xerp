@@ -11,6 +11,6 @@ public sealed class ApiKeyLookup(XerpDbContext db) : IApiKeyLookup
         db.ApiKeys.IgnoreQueryFilters()
             .Where(k => k.KeyHash == keyHash)
             .Join(db.Tenants, k => k.TenantId, t => t.Id,
-                (k, t) => new ApiKeyRecord(k.Id, k.Name, k.ActorType, k.IsActive, k.TenantId, t.IsActive))
+                (k, t) => new ApiKeyRecord(k.Id, k.Name, k.ActorType, k.IsActive, k.TenantId, t.IsActive, k.Scope))
             .SingleOrDefaultAsync(cancellationToken);
 }

@@ -19,7 +19,7 @@ public static class ApiKeyEndpoints
                 return Problems.From(input.Error);
             var result = await operations.ListAsync(input.Value, ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Problems.From(result.Error);
-        }).AcceptsQuery("search", "actorType", "isActive", "limit", "offset");
+        }).AcceptsQuery("search", "actorType", "scope", "isActive", "limit", "offset");
 
         // A malformed id does not match the route and ends as NOT_FOUND like any unknown path (E2).
         keys.MapGet("/{id:guid}", async (Guid id, ApiKeyOperations operations, CancellationToken ct) =>
@@ -52,7 +52,7 @@ public static class ApiKeyEndpoints
     {
         var binder = new QueryBinder(query);
         var input = new ListApiKeysInput(
-            binder.Text("search"), binder.Text("actorType"), binder.Bool("isActive"), binder.Int("limit"), binder.Int("offset"));
+            binder.Text("search"), binder.Text("actorType"), binder.Bool("isActive"), binder.Int("limit"), binder.Int("offset"), binder.Text("scope"));
         return binder.Error is { } error ? error : input;
     }
 }

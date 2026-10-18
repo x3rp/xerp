@@ -28,6 +28,8 @@ public sealed class ApiKeyOperations(
         var keys = db.ApiKeys.AsNoTracking();
         if (query.ActorType is { } actorType)
             keys = keys.Where(k => k.ActorType == actorType);
+        if (query.Scope is { } scope)
+            keys = keys.Where(k => k.Scope == scope);
         if (query.IsActive is { } isActive)
             keys = keys.Where(k => k.IsActive == isActive);
         if (query.Search is { } search)
@@ -69,12 +71,12 @@ public sealed class ApiKeyOperations(
 
         var secret = keyGenerator.Generate();
         var key = ApiKey.Create(
-            tenantId, validated.Value.Name, validated.Value.ActorType, keyHasher.Hash(secret), clock.UtcNow, actingKeyId);
+            tenantId, validated.Value.Name, validated.Value.ActorType, keyHasher.Hash(secret), clock.UtcNow, actingKeyId, validated.Value.Scope);
         db.ApiKeys.Add(key);
         await db.SaveChangesAsync(cancellationToken);
 
         return new CreatedApiKeyDto(
-            key.Id, key.Name, key.ActorType.ToName(), key.IsActive, key.CreatedAt, key.CreatedBy, key.RevokedAt, key.RevokedBy, secret);
+            key.Id, key.Name, key.ActorType.ToName(), key.Scope.ToName(), key.IsActive, key.CreatedAt, key.CreatedBy, key.RevokedAt, key.RevokedBy, secret);
     }
 
     public async Task<Result<ApiKeyDto>> RevokeAsync(Guid id, CancellationToken cancellationToken = default)
@@ -114,7 +116,7 @@ public sealed class ApiKeyOperations(
             : RevokeAsync(parsed, cancellationToken);
 
     private static ApiKeyDto ToDto(ApiKey key) =>
-        new(key.Id, key.Name, key.ActorType.ToName(), key.IsActive, key.CreatedAt, key.CreatedBy, key.RevokedAt, key.RevokedBy);
+        new(key.Id, key.Name, key.ActorType.ToName(), key.Scope.ToName(), key.IsActive, key.CreatedAt, key.CreatedBy, key.RevokedAt, key.RevokedBy);
 
     private static AppError NotFound() => AppError.NotFound(NotFoundDetail);
 }

@@ -52,7 +52,7 @@ public class MasterRuleIsolationAndMcpTests(XerpFixture app)
         await MasterRules.AssertDefaultBehaviourAsync(y.Client, named: true);
 
         var ofY = await Rules.ListAsync(y.Client, "?limit=500");
-        Assert.Equal(40, ofY.Total());
+        Assert.Equal(48, ofY.Total());
         Assert.Equal(Rules.All, ofY.RuleKeys());
         foreach (var rule in ofY.Items())
         {
@@ -128,7 +128,7 @@ public class MasterRuleIsolationAndMcpTests(XerpFixture app)
         var tools = await s.Mcp.Client.ListToolsAsync();
         var list = await s.Mcp.OkAsync("rule_list", new { limit = 500 });
 
-        Assert.Equal(84, tools.Select(t => t.ProtocolTool.Name).Distinct().Count());
+        Assert.Equal(100, tools.Select(t => t.ProtocolTool.Name).Distinct().Count());
         McpAssert.JsonEqual(await Rules.ListAsync(s.Http, "?limit=500"), list, "rule_list differs from GET /rules");
         Assert.Equal(Rules.All, list.RuleKeys());
         foreach (var group in MasterRules.Groups)
@@ -255,7 +255,7 @@ public class MasterRuleIsolationAndMcpTests(XerpFixture app)
         var agent = await Keys.CreateAsync(app, s.Http, "claude-after", "agent");
         await using var fresh = await app.McpAsync(agent.Key);
         var after = (await fresh.Client.ListToolsAsync()).ToDictionary(t => t.ProtocolTool.Name, t => t.ProtocolTool.InputSchema.Clone());
-        Assert.Equal(84, after.Count);
+        Assert.Equal(100, after.Count);
         foreach (var name in MasterTools)
             McpAssert.JsonEqual(before[name], after[name], $"The input schema of {name} changed with the rules");
         // Every field a rule can require stays nullable and out of "required" of the create tools (section 2).

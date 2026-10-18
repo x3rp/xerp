@@ -5,11 +5,13 @@ using Xerp.Application.Common;
 using Xerp.Application.Identity;
 using Xerp.Application.Orders;
 using Xerp.Application.Partners;
+using Xerp.Application.Pos;
 using Xerp.Application.Rules;
 using Xerp.Application.Sales;
 using Xerp.Application.Stock;
 using Xerp.Application.UnitsOfMeasure;
 using Xerp.Application.Warehouses;
+using Xerp.Domain.Pos;
 using Xerp.Domain.Sales;
 using static Xerp.Api.Mcp.ToolSchemas;
 
@@ -343,6 +345,130 @@ public static class ToolCatalog
             ["type"] = new System.Text.Json.Nodes.JsonArray("number", "null"),
             ["description"] = "What one base unit of the article sells for, **tax included**, as a JSON number (not a string): 0 to 999999999.999999, at most 6 decimal places; 0 is a price. Null for no price. Required.",
         }),
+    ];
+
+    // ---- spec P02, section 5
+    private const string SignInFailed =
+        "`OPERATOR_SIGN_IN_FAILED`: the operator code and PIN were not accepted - one answer for an unknown code, a wrong PIN, an inactive and a locked operator "
+        + "(after 5 wrong PINs in a row an operator is locked for 15 minutes; a new PIN set with `pos_operator_set_pin` unlocks it).";
+
+    private static readonly (string, System.Text.Json.Nodes.JsonObject) Rights = ("rights", new System.Text.Json.Nodes.JsonObject
+    {
+        ["type"] = "object",
+        ["description"] = "The sensitive acts operators of this role may do without a second operator's approval: an object with exactly these seven JSON booleans, all required.",
+        ["properties"] = new System.Text.Json.Nodes.JsonObject(PosRightNames.All.Select(n =>
+            KeyValuePair.Create(n, (System.Text.Json.Nodes.JsonNode?)Flag($"Whether the role allows `{n}`.")))),
+        ["required"] = new System.Text.Json.Nodes.JsonArray(PosRightNames.All.Select(n => (System.Text.Json.Nodes.JsonNode)n).ToArray()),
+        ["additionalProperties"] = false,
+    });
+
+    private static (string, System.Text.Json.Nodes.JsonObject) PinOf(string name, string whose) =>
+        (name, Text($"The PIN of {whose}: a JSON string of 4 to 8 digits 0-9 (\"0420\", not 420), exactly as typed. It is never returned by any tool."));
+
+    private static (string, System.Text.Json.Nodes.JsonObject)[] OperatorFields(bool update) =>
+    [
+        ("code", Text("Unique code of the operator within the tenant, 1-50 characters: letters, digits, '.', '_' or '-'. The operator types it to sign in.")),
+        ("name", Text("Name of the operator, 1-200 characters.")),
+        ("roleId", NullableUuid("The `id` of the operator's POS role (see `pos_role_list`), or null for none. Required unless this company's rule `posOperator.roleRequired` is false; "
+            + "an operator without a role has no rights of its own." + (update ? " Required: pass null for none." : ""))),
+        .. update ? Array.Empty<(string, System.Text.Json.Nodes.JsonObject)>() : [PinOf("pin", "the operator")],
+        ("isActive", Flag(update
+            ? "Whether the operator can sign in. Required. false ends the operator's active sessions."
+            : "Whether the operator can sign in; default true.")),
+    ];
+
+    private const string SessionResult =
+        "The session's `status` is `active` or `ended` (an expired session reads `ended`); `role` and `rights` are the operator's role's current values (`role` null and every right false without an active role).";
+
+    private static readonly XerpTool[] PosTools =
+    [
+        .. CodedMasterTools<PosRoleOperations, PosRole, PosRoleDto, PosRoleInput, PosRoleValues, ListCodedMastersInput>(
+            "pos_role", "POS role", "POS roles", "posRole", "for example `WAITER` with only `voidLine`, or `MANAGER` with every right",
+            "`IN_USE`: an operator has the role (list them with `pos_operator_list` `roleId`); give them another role, or deactivate the role with `pos_role_update` instead.",
+            [Rights], [], (operations, input, ct) => operations.ListAsync(input, ct)),
+
+        XerpTool.For<ListPosOperatorsInput, PagedResult<PosOperatorDto>>("pos_operator_list", ToolKind.Read,
+            "Lists the tenant's POS operators ordered by code, with paging; `total` counts all matches. Filters combine with AND. "
+            + "`lockedUntil` in the future means the operator is locked after wrong PINs. " + Validation,
+            Input([], [Search("the code or the name"), IsActiveFilter("operators"), ("roleId", Uuid("Return only operators with the POS role of this `id`.")), .. Paging]),
+            (services, input, ct) => services.GetRequiredService<PosOperatorOperations>().ListAsync(input, ct)),
+
+        XerpTool.For<RecordAddressInput, PosOperatorDto>("pos_operator_get", ToolKind.Read,
+            "Returns one POS operator, addressed by `id` or by `code` (exactly one of the two); never its PIN. "
+            + "`VALIDATION_FAILED`: both or neither were given. `NOT_FOUND`: no such operator in this tenant.",
+            Input([], IdOrCode),
+            (services, input, ct) => services.GetRequiredService<PosOperatorOperations>().FindAsync(input, ct)),
+
+        XerpTool.For<CreatePosOperatorInput, PosOperatorDto>("pos_operator_create", ToolKind.Create,
+            "Creates a POS operator (a member of staff who signs in on a till with code and PIN) and returns it with its `id`; the PIN is stored only as a salted hash. "
+            + "Two operators may have the same PIN. " + Validation + " " + CodeTaken
+            + " `REFERENCE_NOT_FOUND`: `roleId` names no POS role of this tenant. `REFERENCE_INACTIVE`: that role is inactive." + MasterRules("posOperator", update: false),
+            Input(["code", "name", "pin"], OperatorFields(update: false)),
+            (services, input, ct) => services.GetRequiredService<PosOperatorOperations>().CreateAsync(input, ct)),
+
+        XerpTool.WithId<ReplacePosOperatorInput, PosOperatorDto>("pos_operator_update", ToolKind.Update,
+            "Replaces all fields of a POS operator except its PIN (use `pos_operator_set_pin`); every argument is required. "
+            + "Setting `isActive` to false ends the operator's active sessions; retire an operator that has signed in this way. "
+            + Validation + " `NOT_FOUND`: no such operator in this tenant. " + CodeTaken
+            + " `REFERENCE_NOT_FOUND`: `roleId` names no POS role of this tenant. `REFERENCE_INACTIVE`: that role is inactive and the operator did not already have it." + MasterRules("posOperator", update: true),
+            Input(["id", "code", "name", "roleId", "isActive"], [IdOf("operator to replace"), .. OperatorFields(update: true)]),
+            (services, id, input, ct) => services.GetRequiredService<PosOperatorOperations>().ReplaceAsync(id, input, ct)),
+
+        XerpTool.For<RecordIdInput, SalesRecordDeleted>("pos_operator_delete", ToolKind.Delete,
+            "Deletes a POS operator; returns `{ \"deleted\": true }`. `NOT_FOUND`: no such operator in this tenant. "
+            + "`IN_USE`: the operator has signed in at least once; deactivate it with `pos_operator_update` instead.",
+            Input(["id"], IdOf("operator to delete")),
+            (services, input, ct) => services.GetRequiredService<PosOperatorOperations>().DeleteAsync(input.Id, ct)),
+
+        XerpTool.For<SetPosOperatorPinArguments, PosOperatorDto>("pos_operator_set_pin", ToolKind.Update,
+            "Gives a POS operator a new PIN. It also unlocks the operator, clears its failed attempts and ends all its active sessions; setting the same PIN again has the same effects. "
+            + Validation + " `NOT_FOUND`: no such operator in this tenant.",
+            Input(["id", "pin"], [IdOf("operator"), PinOf("pin", "the operator, the new one")]),
+            (services, input, ct) => services.GetRequiredService<PosOperatorOperations>().SetPinAsync(input, ct)),
+
+        XerpTool.For<StartPosSessionInput, PosSessionDto>("pos_session_start", ToolKind.Create,
+            "Signs an operator in with code and PIN on the device of this API key and returns the new session (it lasts 12 hours at most). "
+            + "Only this API key can use, list and end the session. This company's rules may end other sessions at a sign-in "
+            + "(`rule_list` with `group` = `pos`: `pos.severalOperatorsPerDeviceAllowed`, `pos.operatorOnSeveralDevicesAllowed`). "
+            + SessionResult + " " + Validation + " " + SignInFailed,
+            Input(["operatorCode", "pin"],
+            [
+                ("operatorCode", Text("The operator's code, in any letter case.")),
+                PinOf("pin", "the operator"),
+            ]),
+            (services, input, ct) => services.GetRequiredService<PosSessionOperations>().StartAsync(input, ct)),
+
+        XerpTool.For<RecordIdInput, PosSessionDto>("pos_session_get", ToolKind.Read,
+            "Returns one operator session of this API key. " + SessionResult + " `NOT_FOUND`: no such session of this API key.",
+            Input(["id"], IdOf("session")),
+            (services, input, ct) => services.GetRequiredService<PosSessionOperations>().GetAsync(input, ct)),
+
+        XerpTool.For<ListPosSessionsInput, PagedResult<PosSessionDto>>("pos_session_list", ToolKind.Read,
+            "Lists the operator sessions of this API key, newest first, with paging. " + Validation,
+            Input([], [("status", Text("Return only active or only ended (also expired) sessions.", PosSessionStatusNames.Active, PosSessionStatusNames.Ended)), .. Paging]),
+            (services, input, ct) => services.GetRequiredService<PosSessionOperations>().ListAsync(input, ct)),
+
+        XerpTool.For<RecordIdInput, PosSessionDto>("pos_session_end", ToolKind.Repeatable,
+            "Ends (signs out) an operator session of this API key and returns it. Ending an ended or expired session returns it unchanged. "
+            + "`NOT_FOUND`: no such session of this API key.",
+            Input(["id"], IdOf("session to end")),
+            (services, input, ct) => services.GetRequiredService<PosSessionOperations>().EndAsync(input, ct)),
+
+        XerpTool.For<AuthorizeInput, PosAuthorizationDto>("pos_authorize", ToolKind.Create,
+            "Asks whether the operator of a session may do a sensitive act, before doing it: allowed when the operator's role has the `right`, "
+            + "or when a second operator whose role has it approves with `approverCode` and `approverPin` (an approver given is always checked). "
+            + "Returns `{ right, operator, approvedBy }`; `approvedBy` is null when the operator's own right sufficed. Changes nothing except the approver's failed-PIN count. "
+            + Validation + " `REFERENCE_NOT_FOUND`: `sessionId` names no session of this API key. `SESSION_NOT_ACTIVE`: the session is ended or expired; sign in again. "
+            + "`OPERATOR_RIGHT_MISSING`: neither the operator nor the approver may do it, the approver is the operator, or this company's rule `pos.secondOperatorApprovalAllowed` is false (then `rules` names it). "
+            + SignInFailed.Replace("`OPERATOR_SIGN_IN_FAILED`: the", "`OPERATOR_SIGN_IN_FAILED` (key `approverPin`): the approver's"),
+            Input(["sessionId", "right"],
+            [
+                ("sessionId", Uuid("The `id` of an active session of this API key (see `pos_session_start`).")),
+                ("right", Text("The act to check.", [.. PosRightNames.All])),
+                ("approverCode", Text("The code of a second operator who approves the act. Give it together with `approverPin`, or neither.")),
+                PinOf("approverPin", "the approver"),
+            ]),
+            (services, input, ct) => services.GetRequiredService<PosSessionOperations>().AuthorizeAsync(input, ct)),
     ];
 
     public static IReadOnlyList<XerpTool> All { get; } =
@@ -968,13 +1094,14 @@ public static class ToolCatalog
             [
                 Search("the name"),
                 ("actorType", Text("Return only keys of this kind of actor.", "human", "agent")),
+                ("scope", Text("Return only keys with this scope: `full` (may do everything) or `pos` (limited to POS work).", "full", "pos")),
                 IsActiveFilter("keys (inactive = revoked)"),
                 .. Paging,
             ]),
             (services, input, ct) => services.GetRequiredService<ApiKeyOperations>().ListAsync(input, ct)),
 
         XerpTool.For<RecordIdInput, ApiKeyDto>("api_key_get", ToolKind.Read,
-            "Returns one API key (name, actor type, state, who created and revoked it), never its secret. "
+            "Returns one API key (name, actor type, scope, state, who created and revoked it), never its secret. "
             + "`NOT_FOUND`: no such key in this tenant.",
             Input(["id"], IdOf("API key")),
             (services, input, ct) => services.GetRequiredService<ApiKeyOperations>().GetAsync(input.Id, ct)),
@@ -1073,5 +1200,8 @@ public static class ToolCatalog
             "Removes a barcode from its article; returns `{ \"deleted\": true }`. The article is not changed. `NOT_FOUND`: no such barcode record in this tenant.",
             Input(["id"], IdOf("barcode record to delete")),
             (services, input, ct) => services.GetRequiredService<ArticleBarcodeOperations>().DeleteAsync(input, ct)),
+
+        // ---- POS operators, roles and rights (spec P02, section 5)
+        .. PosTools,
     ];
 }

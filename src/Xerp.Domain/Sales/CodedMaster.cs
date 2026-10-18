@@ -37,6 +37,12 @@ public abstract class CodedMaster : ITenantOwned
         Code = newCode;
         Name = newName;
         IsActive = isActive;
+        Touch(now, actorKeyId);
+    }
+
+    /// <summary>Attributes a change of a member that only the derived master has.</summary>
+    protected void Touch(DateTime now, Guid actorKeyId)
+    {
         UpdatedAt = now;
         UpdatedBy = actorKeyId;
     }

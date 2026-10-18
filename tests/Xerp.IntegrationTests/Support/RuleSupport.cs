@@ -24,12 +24,13 @@ public static class Rules
     /// <summary>The six keys of spec 012 in the order of the list (R2: by key, ordinal).</summary>
     public static readonly string[] Keys = [OverReceipt, PurchasePartner, OverDelivery, SalesPartner, Protected, NegativeStock];
 
-    /// <summary>The whole registry since spec P01 (P01 6.1): the six of spec 012, the 24 of the masters and the ten of sales master data, by key, ordinal.</summary>
-    public static readonly string[] All = Keys.Concat(MasterRules.Keys).Concat(SalesRules.Keys).Order(StringComparer.Ordinal).ToArray();
+    /// <summary>The whole registry since spec P02 (P02 6.1): the six of spec 012, the 24 of the masters, the ten of sales master data and the eight of POS operators, by key, ordinal.</summary>
+    public static readonly string[] All = Keys.Concat(MasterRules.Keys).Concat(SalesRules.Keys).Concat(PosRules.Keys).Order(StringComparer.Ordinal).ToArray();
 
-    /// <summary>The default of a rule (012 section 6.1, 013 section 6.1, P01 section 6.1).</summary>
+    /// <summary>The default of a rule (012 section 6.1, 013 section 6.1, P01 section 6.1, P02 section 6.1).</summary>
     public static bool Default(string key) =>
-        key is PurchasePartner or SalesPartner or MasterRules.RoleRequired or SalesRules.BarcodeUnique
+        key is PurchasePartner or SalesPartner or MasterRules.RoleRequired or SalesRules.BarcodeUnique or PosRules.RoleRequired
+        || key.StartsWith("pos.", StringComparison.Ordinal)
         || key.EndsWith(".codeChangeable", StringComparison.Ordinal);
 
     /// <summary>The nine properties of a rule (section 4), sorted. There is no <c>type</c> and no <c>allowed</c>.</summary>

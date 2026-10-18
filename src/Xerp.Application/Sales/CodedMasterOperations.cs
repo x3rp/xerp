@@ -34,6 +34,24 @@ public abstract class CodedMasterOperations<TEntity, TDto, TInput, TValues>(IXer
     protected abstract string AWord { get; }
 
     protected abstract Result<TValues> Validate(TInput input, bool replace);
+
+    /// <summary>As <see cref="Validate(TInput, bool)"/>, for a master whose input a tenant's rule also judges.</summary>
+    protected virtual Result<TValues> Validate(TInput input, bool replace, TenantRules rules) => Validate(input, replace);
+
+    /// <summary>
+    /// The references of the values (ADR-0008), after "exists" and before the code checks (013, R10); null when
+    /// they are acceptable. <paramref name="stored"/> is null on a create.
+    /// </summary>
+    protected virtual Task<AppError?> ReferencesAsync(TValues values, TEntity? stored, CancellationToken cancellationToken) =>
+        Task.FromResult<AppError?>(null);
+
+    /// <summary>What a replace does besides the record, in its transaction, before the save.</summary>
+    /// <param name="wasActive">Whether the record was active before the replace.</param>
+    protected virtual Task ReplacingAsync(TEntity record, bool wasActive, DateTime now, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
+    /// <summary>Reads what the representations of <paramref name="records"/> show besides the records, before <see cref="ToDto"/>.</summary>
+    protected virtual Task PrepareAsync(IReadOnlyList<TEntity> records, CancellationToken cancellationToken) => Task.CompletedTask;
     protected abstract TEntity Create(TValues values, DateTime now, Guid actorKeyId);
     protected abstract void Replace(TEntity record, TValues values, DateTime now, Guid actorKeyId);
     protected abstract TDto ToDto(TEntity record);
@@ -72,13 +90,14 @@ public abstract class CodedMasterOperations<TEntity, TDto, TInput, TValues>(IXer
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken);
+        await PrepareAsync(items, cancellationToken);
         return new PagedResult<TDto>(items.Select(ToDto).ToList(), total, limit, offset);
     }
 
     public async Task<Result<TDto>> GetAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var record = await Records.AsNoTracking().SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
-        return record is null ? NotFound() : ToDto(record);
+        return record is null ? NotFound() : await ToDtoAsync(record, cancellationToken);
     }
 
     public async Task<Result<TDto>> GetByCodeAsync(string? code, CancellationToken cancellationToken = default)
@@ -88,19 +107,21 @@ public abstract class CodedMasterOperations<TEntity, TDto, TInput, TValues>(IXer
             return NotFound();
         var record = await Records.AsNoTracking()
             .SingleOrDefaultAsync(r => EF.Property<string>(r, DbNames.CodeLower) == DbText.Lower(normalized), cancellationToken);
-        return record is null ? NotFound() : ToDto(record);
+        return record is null ? NotFound() : await ToDtoAsync(record, cancellationToken);
     }
 
     public async Task<Result<TDto>> CreateAsync(TInput input, CancellationToken cancellationToken = default)
     {
         var tenantRules = await rules.ReadAsync(cancellationToken);
-        var validated = Validate(input, replace: false);
+        var validated = Validate(input, replace: false, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
 
         return await WriteAsync(values.Code, async ct =>
         {
+            if (await ReferencesAsync(values, null, ct) is { } referenceError)
+                return referenceError;
             if (await CodeIsUsedAsync(values.Code, exceptId: null, ct))
                 return CodeTaken(values.Code);
             if (await MasterWriteChecks.NameAsync(tenantRules, RuleSet, Records, Word, values.Name, ct) is { } nameTaken)
@@ -109,7 +130,7 @@ public abstract class CodedMasterOperations<TEntity, TDto, TInput, TValues>(IXer
             var record = Create(values, clock.UtcNow, ActorKeyId());
             Records.Add(record);
             await db.SaveChangesAsync(ct);
-            return ToDto(record);
+            return await ToDtoAsync(record, ct);
         }, cancellationToken);
     }
 
@@ -117,7 +138,7 @@ public abstract class CodedMasterOperations<TEntity, TDto, TInput, TValues>(IXer
     public async Task<Result<TDto>> ReplaceAsync(Guid id, TInput input, CancellationToken cancellationToken = default)
     {
         var tenantRules = await rules.ReadAsync(cancellationToken);
-        var validated = Validate(input, replace: true);
+        var validated = Validate(input, replace: true, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
@@ -127,6 +148,8 @@ public abstract class CodedMasterOperations<TEntity, TDto, TInput, TValues>(IXer
             var record = await Records.SingleOrDefaultAsync(r => r.Id == id, ct);
             if (record is null)
                 return NotFound();
+            if (await ReferencesAsync(values, record, ct) is { } referenceError)
+                return referenceError;
             if (MasterWriteChecks.CodeChange(tenantRules, RuleSet, AWord, record.Code, values.Code) is { } codeChange)
                 return codeChange;
             if (await CodeIsUsedAsync(values.Code, exceptId: id, ct))
@@ -134,9 +157,12 @@ public abstract class CodedMasterOperations<TEntity, TDto, TInput, TValues>(IXer
             if (await MasterWriteChecks.NameAsync(tenantRules, RuleSet, Records.Where(r => r.Id != id), Word, values.Name, ct) is { } nameTaken)
                 return nameTaken;
 
-            Replace(record, values, clock.UtcNow, ActorKeyId());
+            var wasActive = record.IsActive;
+            var now = clock.UtcNow;
+            Replace(record, values, now, ActorKeyId());
+            await ReplacingAsync(record, wasActive, now, ct);
             await db.SaveChangesAsync(ct);
-            return ToDto(record);
+            return await ToDtoAsync(record, ct);
         }, cancellationToken);
     }
 
@@ -208,17 +234,23 @@ public abstract class CodedMasterOperations<TEntity, TDto, TInput, TValues>(IXer
         }
     }
 
+    private async Task<TDto> ToDtoAsync(TEntity record, CancellationToken cancellationToken)
+    {
+        await PrepareAsync([record], cancellationToken);
+        return ToDto(record);
+    }
+
     private Task<bool> CodeIsUsedAsync(string code, Guid? exceptId, CancellationToken cancellationToken) =>
         Records.AnyAsync(
             r => EF.Property<string>(r, DbNames.CodeLower) == DbText.Lower(code) && (exceptId == null || r.Id != exceptId),
             cancellationToken);
 
-    private Guid ActorKeyId() =>
+    protected Guid ActorKeyId() =>
         context.ApiKeyId ?? throw new InvalidOperationException($"{AWord} can only be written by a tenant API key.");
 
-    private string NotFoundDetail => $"{char.ToUpperInvariant(Word[0])}{Word[1..]} not found.";
+    protected string NotFoundDetail => $"{char.ToUpperInvariant(Word[0])}{Word[1..]} not found.";
 
-    private AppError NotFound() => AppError.NotFound(NotFoundDetail);
+    protected AppError NotFound() => AppError.NotFound(NotFoundDetail);
 
     private AppError CodeTaken(string code) => AppError.CodeTaken($"{char.ToUpperInvariant(AWord[0])}{AWord[1..]} with code '{code}' already exists.");
 

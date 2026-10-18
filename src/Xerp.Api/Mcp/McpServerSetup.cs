@@ -1,3 +1,7 @@
+using Xerp.Api.Http;
+using Xerp.Application.Common;
+using Xerp.Application.Pos;
+using Xerp.Domain.Tenancy;
 using System.Reflection;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol;
@@ -31,6 +35,12 @@ public static class McpServerSetup
 
     private static readonly ListToolsResult ToolList = new() { Tools = ToolCatalog.All.Select(t => t.ToProtocolTool()).ToList() };
 
+    /// <summary>Spec P02, R33: what a key with scope <c>pos</c> sees - exactly the tools of the allow-list.</summary>
+    private static readonly ListToolsResult PosToolList = new()
+    {
+        Tools = ToolCatalog.All.Where(t => PosAllowList.AllowsTool(t.Name)).Select(t => t.ToProtocolTool()).ToList(),
+    };
+
     public static IServiceCollection AddXerpMcpServer(this IServiceCollection services)
     {
         services.AddMcpServer(options =>
@@ -40,10 +50,13 @@ public static class McpServerSetup
                 options.Capabilities = new ServerCapabilities { Tools = new ToolsCapability { ListChanged = false } };
             })
             .WithHttpTransport(transport => transport.Stateless = true)
-            .WithListToolsHandler((_, _) => ValueTask.FromResult(ToolList))
+            .WithListToolsHandler((request, _) => ValueTask.FromResult(IsPosKey(request.Services) ? PosToolList : ToolList))
             .WithCallToolHandler(CallToolAsync);
         return services;
     }
+
+    private static bool IsPosKey(IServiceProvider? services) =>
+        services?.GetService<RequestActor>()?.Scope == ApiKeyScope.Pos;
 
     private static string ApiVersion =>
         typeof(McpServerSetup).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
@@ -57,6 +70,9 @@ public static class McpServerSetup
             throw new McpProtocolException($"Unknown tool: '{name}'.", McpErrorCode.InvalidParams);
 
         var services = request.Services ?? throw new InvalidOperationException("The MCP request has no service provider.");
+        if (IsPosKey(services) && !PosAllowList.AllowsTool(name))
+            return ToolResults.Error(AppError.Forbidden(
+                "This API key is limited to POS work (scope pos): it may not call this tool. Use a key with scope full."));
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(McpServerSetup));
         try
         {

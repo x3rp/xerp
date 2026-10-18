@@ -147,6 +147,54 @@ public static class RuleRegistry
         + "An article never lists one barcode twice, whatever the value. After a change back to true, duplicates that already exist stay and are all returned; only the next create is judged.",
         Default: true);
 
+    /// <summary>The master-data rules of POS roles (spec P02, 6.1).</summary>
+    public static readonly MasterRuleSet PosRole = Master("posRole", "POS role", "POS roles", "pos_role");
+
+    /// <summary>The master-data rules of POS operators (spec P02, 6.1), without the role rule.</summary>
+    public static readonly MasterRuleSet PosOperator = Master("posOperator", "operator", "operators", "pos_operator");
+
+    public static readonly RuleDefinition PosOperatorRoleRequired = new(
+        "posOperator.roleRequired",
+        "Role required on an operator",
+        "Judges creating and replacing a POS operator (pos_operator_create, pos_operator_update). "
+        + "When true, an operator cannot be saved without a role: roleId null is refused with VALIDATION_FAILED. "
+        + "When false, an operator may be saved with roleId null; it signs in, but has no rights of its own, so each sensitive act needs a second operator's approval. "
+        + "Operators that already exist are not judged again: an operator without a role stays and signs in, and its next replace must give it a role.",
+        Default: true);
+
+    /// <summary>By request field of the operator's create and replace, the rule that makes it required (spec P02, R3).</summary>
+    public static IReadOnlyDictionary<string, RuleDefinition> PosOperatorRequiredFields { get; } = new Dictionary<string, RuleDefinition>(StringComparer.Ordinal)
+    {
+        ["roleId"] = PosOperatorRoleRequired,
+    };
+
+    public static readonly RuleDefinition PosSecondOperatorApprovalAllowed = new(
+        "pos.secondOperatorApprovalAllowed",
+        "A sensitive act may be approved by a second operator",
+        "Judges authorize (pos_authorize) and every sensitive act that names a right. "
+        + "When true, an operator whose role lacks the right may do the act when another operator with the right approves it with code and PIN. "
+        + "When false, an authorize with an approver is refused with OPERATOR_RIGHT_MISSING (key approverCode); only the session operator's own rights count. "
+        + "Nothing stored is changed by the rule.",
+        Default: true);
+
+    public static readonly RuleDefinition PosSeveralOperatorsPerDeviceAllowed = new(
+        "pos.severalOperatorsPerDeviceAllowed",
+        "Several operators may be signed in on one device at once",
+        "Judges starting an operator session (pos_session_start). "
+        + "When true, any number of operators may have active sessions on the same API key (device), and a waiter switches by signing in. "
+        + "When false, a sign-in ends every other active session of the calling API key in the same transaction; the sign-in itself is never refused. "
+        + "Sessions that are already active stay until the next sign-in on their key.",
+        Default: true);
+
+    public static readonly RuleDefinition PosOperatorOnSeveralDevicesAllowed = new(
+        "pos.operatorOnSeveralDevicesAllowed",
+        "An operator may be signed in on several devices at once",
+        "Judges starting an operator session (pos_session_start). "
+        + "When true, an operator may have active sessions on several API keys (devices) at once. "
+        + "When false, a sign-in ends the operator's active sessions on other API keys in the same transaction; other operators' sessions are not touched and the sign-in is never refused. "
+        + "Sessions that are already active stay until the operator's next sign-in.",
+        Default: true);
+
     /// <summary>The four masters, each with its rules.</summary>
     public static IReadOnlyList<MasterRuleSet> Masters { get; } = [Uom, Article, Partner, Warehouse];
 
@@ -159,6 +207,8 @@ public static class RuleRegistry
             NegativeStockAllowed, OverReceiptAllowed, OverDeliveryAllowed, ReservedStockProtected, PurchasePartnerRequired, SalesPartnerRequired,
             PartnerRoleRequired, PartnerTaxIdUnique, .. Masters.SelectMany(m => m.All),
             ArticleCategoryRequired, ArticleTaxRateRequired, ArticleSalesPriceRequired, ArticleBarcodeUnique, .. SalesMasters.SelectMany(m => m.All),
+            .. PosRole.All, .. PosOperator.All, PosOperatorRoleRequired, PosSecondOperatorApprovalAllowed,
+            PosSeveralOperatorsPerDeviceAllowed, PosOperatorOnSeveralDevicesAllowed,
         ])
         .OrderBy(r => r.Key, StringComparer.Ordinal)
         .ToList();

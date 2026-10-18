@@ -31,6 +31,9 @@ public static class ErrorCodes
     public const string NameTaken = "NAME_TAKEN";
     public const string TaxIdTaken = "TAX_ID_TAKEN";
     public const string BarcodeTaken = "BARCODE_TAKEN";
+    public const string OperatorSignInFailed = "OPERATOR_SIGN_IN_FAILED";
+    public const string SessionNotActive = "SESSION_NOT_ACTIVE";
+    public const string OperatorRightMissing = "OPERATOR_RIGHT_MISSING";
     public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
     public const string InternalError = "INTERNAL_ERROR";
 }
@@ -117,6 +120,25 @@ public sealed record AppError(
     }
 
     public static AppError InUse(string detail) => new(ErrorCodes.InUse, detail);
+
+    /// <summary>
+    /// Spec P02, R10: one answer for an unknown code, a wrong PIN, an inactive and a locked operator, so that the
+    /// answer tells a guesser nothing. Never repeats the code or the PIN.
+    /// </summary>
+    /// <param name="field"><c>pin</c> at sign-in, <c>approverPin</c> in authorize.</param>
+    public static AppError OperatorSignInFailed(string field) =>
+        new(ErrorCodes.OperatorSignInFailed, "The operator code and PIN were not accepted.",
+            new Dictionary<string, string[]> { [field] = ["The code and PIN do not sign in an operator; check both and try again."] });
+
+    /// <summary>Spec P02, R20 step 3: the session is ended or expired.</summary>
+    public static AppError SessionNotActive() =>
+        new(ErrorCodes.SessionNotActive, "The operator session is ended or expired. The operator must sign in again.",
+            new Dictionary<string, string[]> { ["sessionId"] = ["The session is not active."] });
+
+    /// <summary>Spec P02, R20: neither the session's operator nor the approver may do the act.</summary>
+    /// <param name="field"><c>right</c> without an approver, <c>approverCode</c> with one.</param>
+    public static AppError OperatorRightMissing(string detail, string field, string message) =>
+        new(ErrorCodes.OperatorRightMissing, detail, new Dictionary<string, string[]> { [field] = [message] });
 
     /// <summary>The record is used, so the named fields cannot change (ADR-0012: <c>IN_USE</c> for frozen fields).</summary>
     public static AppError InUse(string detail, IReadOnlyDictionary<string, string[]> errors) => new(ErrorCodes.InUse, detail, errors);

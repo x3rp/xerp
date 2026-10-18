@@ -1,5 +1,7 @@
 using Xerp.Application.Common;
 using Xerp.Application.Identity;
+using Xerp.Application.Pos;
+using Xerp.Domain.Tenancy;
 
 namespace Xerp.Api.Http;
 
@@ -51,7 +53,17 @@ public sealed class ApiV1Middleware(RequestDelegate next)
             return;
         }
         if (credential is TenantCredential tenant)
-            actor.Set(tenant.Key.TenantId, tenant.Key.ApiKeyId);
+        {
+            actor.Set(tenant.Key.TenantId, tenant.Key.ApiKeyId, tenant.Key.Scope);
+            // Spec P02, R31: after authentication, before validation; an unknown path stays NOT_FOUND below.
+            // /mcp filters its tools itself (R33).
+            if (tenant.Key.Scope == ApiKeyScope.Pos && !isMcp && IsOutsidePosWork(context))
+            {
+                await Problems.WriteAsync(context, AppError.Forbidden(
+                    "This API key is limited to POS work (scope pos): it may not perform this operation. Use a key with scope full."));
+                return;
+            }
+        }
 
         // A declared length above the limit is refused unread; a body without one is counted while it is read.
         if (context.Request.ContentLength > MaxRequestBodyBytes)
@@ -72,6 +84,26 @@ public sealed class ApiV1Middleware(RequestDelegate next)
         {
             await Problems.WriteAsync(context, AppError.NotFound("No such resource or operation."));
         }
+    }
+
+    /// <summary>The route matched an endpoint of this method, and the allow-list does not name it.</summary>
+    private static bool IsOutsidePosWork(HttpContext context)
+    {
+        if (context.GetEndpoint() is not RouteEndpoint endpoint)
+            return false;
+        // Built from the parsed segments: RawText of an endpoint mapped in a group does not hold the whole path.
+        var template = "/" + string.Join("/", endpoint.RoutePattern.PathSegments.Select(segment => string.Concat(segment.Parts.Select(part => part switch
+        {
+            Microsoft.AspNetCore.Routing.Patterns.RoutePatternLiteralPart literal => literal.Content,
+            Microsoft.AspNetCore.Routing.Patterns.RoutePatternParameterPart parameter => "{" + parameter.Name + "}",
+            Microsoft.AspNetCore.Routing.Patterns.RoutePatternSeparatorPart separator => separator.Content,
+            _ => "",
+        }))));
+        var methods = endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods;
+        if (methods is null || !methods.Contains(context.Request.Method, StringComparer.OrdinalIgnoreCase))
+            return false;
+        var route = template.StartsWith("/api/v1", StringComparison.OrdinalIgnoreCase) ? template["/api/v1".Length..] : template;
+        return !PosAllowList.AllowsRoute(context.Request.Method, route);
     }
 
     private static bool IsAllowed(Microsoft.Extensions.Primitives.StringValues origins, IConfiguration configuration)
