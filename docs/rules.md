@@ -194,6 +194,23 @@ one sequence of receipt numbers (I7; form to be confirmed with owner decision 8)
 200 buttons per page, a 20 × 20 grid, one button per cell, labels of 50, colours `#RRGGBB` (I8, I9, I10); a
 category page has no hand-placed buttons (I8); the menu read's content and its version (I9). No new error code.
 
+### Batch P05 — POS bills (spec P05, written)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `pos.operatorSessionRequired` | Every bill write names a signed-in operator | `true` | No: bills may be written without an operator session. |
+| `pos.unpricedArticleSellable` | An article without a sales price may be put on a bill | `false` | Yes: it is added at price `0`. |
+| `pos.saleOutsideMenuAllowed` | An article that is not on the station's menu may be put on a bill | `true` | No: refused (`ARTICLE_NOT_SALEABLE`). |
+| `pos.sameLinesMerged` | Adding an article already on the bill with the same options adds to that line | `true` | No: every add makes a new line. |
+| `posBill.labelRequired` | A bill must have a label | `false` | Yes: a bill without a label is refused (`VALIDATION_FAILED`). |
+
+5 rules; the registry then has 66. Invariants of the same spec (P05 §6.2): quantity `> 0` with storage bounds
+(I8, I10); 200 lines per bill, 20 options per line, label 100, note 2000 (I10); options fit the article's
+modifier groups — `isRequired` and `allowsMultiple` are group data (I8); a line's unit price with options is
+`>= 0` (I8); prices and taxes are copied at add (I8); `version` and idempotency (I8); the session is the calling
+key's and active (I2); a bill's warehouse is its station's (I11). New error codes: `IDEMPOTENCY_KEY_REUSED`,
+`BILL_CHANGED`, `BILL_NOT_EMPTY`, `ARTICLE_NOT_SALEABLE`, `MODIFIERS_INVALID`.
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a

@@ -77,6 +77,10 @@ issue, refund, cash movement, open or close a shift) **requires** an idempotency
 - State is the last guard: a bill is issued once, a shift closed once, a payment completed once.
 - The mechanism is generic (`Idempotency-Key` on any `POST`), delivered with spec P05 and required only by
   POS operations. Existing ERP operations are unchanged.
+- *Refined by spec P05 (2026-10-18):* only successes are stored; the mechanism is one reusable Application
+  piece, honoured by the operations of P05 and of each later spec that opts in (other operations ignore the
+  header); `version` is optional on adding lines (adds commute) and required on every other bill change; the
+  change feed uses an opaque, commit-ordered cursor instead of a timestamp.
 
 ### 5. Payments are records with an outcome; issue happens with the covering payment
 

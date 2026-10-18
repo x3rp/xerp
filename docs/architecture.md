@@ -198,6 +198,11 @@ Every non-2xx response under `/api/v1` is `application/problem+json` (RFC 9457) 
 | 409 | `CANNOT_REVOKE_SELF` | An API key tried to revoke itself. |
 | 409 | `OPERATOR_SIGN_IN_FAILED` | POS operator sign-in or approval failed: unknown code, wrong PIN, inactive or locked operator — one answer for all (spec P02). `errors` has `pin` / `approverPin`. |
 | 409 | `SESSION_NOT_ACTIVE` | The named POS operator session is ended or expired (spec P02). `errors` has `sessionId`. |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | The `Idempotency-Key` was already used in this tenant for another operation or another request body (spec P05). `errors` has `idempotencyKey`. |
+| 409 | `BILL_CHANGED` | The `version` sent is not the POS bill's current version (spec P05). `errors` has `version`. |
+| 409 | `BILL_NOT_EMPTY` | Void of a POS bill that has lines (spec P05; P05a voids them with a right). `errors` has `lines`. |
+| 409 | `ARTICLE_NOT_SALEABLE` | The article cannot be put on a POS bill: no sales price or not on the station's menu, by rule (spec P05). Always with `rules`. `errors` has `lines[i].articleId`. |
+| 409 | `MODIFIERS_INVALID` | The chosen modifier options do not fit the article's groups (spec P05). `errors` has `lines[i].optionIds` / `lines[i].optionIds[j]`. |
 | 409 | `DEFAULT_WAREHOUSE` | The operation would leave the tenant without an active default warehouse: delete or deactivation of the default warehouse, or making an inactive warehouse the default (spec 011). `errors` has `isActive` except on delete. |
 | 409 | `INVALID_STATE` | Operation not allowed in the document's current status (e.g. replace, delete or post of a posted document; reversal of a draft, of a reversed or of a reversing document; replace of a confirmed order; close of a draft order). |
 | 409 | `INSUFFICIENT_STOCK` | Posting would take stock on hand below zero while `stock.negativeStockAllowed` is `false` (the default). `errors` has `lines[i].quantity` for the short lines. |
