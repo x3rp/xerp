@@ -48,7 +48,7 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
 | P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| P02 | Djelatnici (šifra i PIN), ovlasti za osjetljive radnje, API ključ samo za POS | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P02 | Djelatnici (šifra i PIN), ovlasti za osjetljive radnje, API ključ samo za POS | ✅ | 🔄 | 🔄 | ⬜ | ⬜ |
 | P03 | Opcije i dodaci artikala; normativi | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | P04 | POS mjesto, jelovnik, raspored tipki, jedno čitanje jelovnika za frontend | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | P05 | Račun: otvaranje, stavke, napomene, otvorena narudžba, nastavak; verzija; ključevi idempotentnosti | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -76,9 +76,9 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 
 ## Što tko trenutno radi
 
-- **Arhitekt:** piše spec P02 (djelatnici, PIN, ovlasti).
-- **Builder:** zaustavljen; čeka spec P02.
-- **Tester:** zaustavljen; čeka spec P02.
+- **Arhitekt:** spec P02 napisan (`bb71613`); piše spec P03 (opcije, dodaci, normativi).
+- **Builder:** implementira P02 na `feat/P02-operators-rights-pos-keys`.
+- **Tester:** piše testove prihvaćanja za P02.
 
 ## Dnevnik
 
@@ -135,6 +135,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-13 — arhitekt napisao pregled POS-a, ADR-0022 i spec P01; podjela proširena na P01–P12 (smjena prije naplate; račun i naplata podijeljeni u dva dijela; fiskalizacija zasebno); 13 otvorenih odluka vlasnika sa zadanim vrijednostima (pregled §9).
 - 2026-10-16 — P01: builder 744/744 unit i 2053/2054 integracijskih; review OK, sporni test AC-81 bio pogrešan (B-1) i ispravljen; neovisni test čeka slobodnu memoriju (računalo ima < 1 GB slobodno).
 - 2026-10-18 — orkestrator pokrenuo 744 unit + 2054 integracijska testa na P01, svi prolaze; P01 spojen u `main` i pushan. Arhitekt piše P02.
+- 2026-10-18 — spec P02 commitan (djelatnici sa šifrom i PIN-om, zaključavanje, sesije, uloge sa 7 prava, odobrenje drugog djelatnika, API ključ s opsegom full/pos; 8 pravila, 16 alata); tester i builder krenuli na P02, arhitekt na P03.
 
 ## Odluke vlasnika
 
