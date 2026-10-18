@@ -50,8 +50,8 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | P02 | Djelatnici (šifra i PIN), ovlasti za osjetljive radnje, API ključ samo za POS | ✅ | ✅ | ✅ | ✅ | ✅ |
 | P03 | Opcije i dodaci artikala; normativi | ✅ | 🔄 | 🔄 | ⬜ | ⬜ |
-| P04 | POS mjesto, jelovnik, raspored tipki, jedno čitanje jelovnika za frontend | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
-| P05 | Račun: otvaranje, stavke, napomene, otvorena narudžba, nastavak; verzija; ključevi idempotentnosti | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| P04 | POS mjesto, jelovnik, raspored tipki, jedno čitanje jelovnika za frontend | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| P05 | Račun: otvaranje, stavke, napomene, otvorena narudžba, nastavak; verzija; ključevi idempotentnosti | ✅ | 🔄 | ⬜ | ⬜ | ⬜ |
 | P05a | Promjena cijene, popusti, storno s razlogom | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | P06 | Smjena 1: otvaranje s početnim iznosom, uplate/isplate, predaja | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | P07 | Naplata i izdavanje: gotovina, kartica, kombinirano, povrat gotovine, račun, knjiženje zaliha | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -76,9 +76,9 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 
 ## Što tko trenutno radi
 
-- **Arhitekt:** review P02 OK; čeka review P03.
+- **Arhitekt:** spec P05 napisan (`c5b394c`); piše P05a.
 - **Builder:** implementira P03 na `feat/P03-modifiers-recipes`.
-- **Tester:** piše testove prihvaćanja za P03.
+- **Tester:** testovi za P03 (`393bff5`) i P04 (`5b9d552`) gotovi; piše testove za P05.
 
 ## Dnevnik
 
@@ -140,6 +140,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-18 — spec P04 commitan (POS mjesta, jelovnici sa stranicama i rešetkom tipki, jedno čitanje jelovnika s ETag-om, traženje po nazivu/šifri/barkodu; 8 pravila, 14 alata).
 - 2026-10-18 — orkestrator napravio `xerp-pos` (zaseban repozitorij, lokalno `8b40b5c`, bez remotea): spajanje uređaja, jelovnik iz P04 ili iz kategorija (P01), PIN prijava (P02), račun s opcijama i napomenama, otvoreni računi u pregledniku do P05, traženje i čitač barkoda, naplata s povratom, predračun 80 mm; `seed.py` pravi probni kafić.
 - 2026-10-18 — review P02: tražene 2 male izmjene koda (whoami za POS ključ, pos_authorize nije samo čitanje) i 3 testa (AC-60 bio pogrešan); unio orkestrator na `close/P02`; 785 unit + 2147 integracijskih, svi prolaze; ponovni review OK; P02 spojen u `main` i pushan. Tester i builder kreću na P03.
+- 2026-10-18 — testovi za P03 i P04 napisani; spec P05 commitan (računi na POS-u, verzija i BILL_CHANGED, ključevi idempotentnosti, feed promjena s kursorom; 5 pravila, 9 alata); builder radi P03.
 
 ## Odluke vlasnika
 
