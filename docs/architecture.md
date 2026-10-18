@@ -200,7 +200,9 @@ Every non-2xx response under `/api/v1` is `application/problem+json` (RFC 9457) 
 | 409 | `SESSION_NOT_ACTIVE` | The named POS operator session is ended or expired (spec P02). `errors` has `sessionId`. |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | The `Idempotency-Key` was already used in this tenant for another operation or another request body (spec P05). `errors` has `idempotencyKey`. |
 | 409 | `BILL_CHANGED` | The `version` sent is not the POS bill's current version (spec P05). `errors` has `version`. |
-| 409 | `BILL_NOT_EMPTY` | Void of a POS bill that has lines (spec P05; P05a voids them with a right). `errors` has `lines`. |
+| 409 | `BILL_NOT_EMPTY` | *Retired by spec P05a* (was: void of a POS bill that has lines, spec P05). Not returned. |
+| 409 | `DISCOUNT_EXCEEDS_AMOUNT` | A POS discount amount is larger than what it applies to, when set or after a change lowers that base (spec P05a). `errors` has `discount`, or `quantity` / `unitPrice`. |
+| 409 | `LINE_REMOVAL_NOT_ALLOWED` | With `pos.lineRemovalAllowed` = `false`: a POS bill line can only be voided, not removed (spec P05a). Always with `rules`. `errors` has `lineId`. |
 | 409 | `ARTICLE_NOT_SALEABLE` | The article cannot be put on a POS bill: no sales price or not on the station's menu, by rule (spec P05). Always with `rules`. `errors` has `lines[i].articleId`. |
 | 409 | `MODIFIERS_INVALID` | The chosen modifier options do not fit the article's groups (spec P05). `errors` has `lines[i].optionIds` / `lines[i].optionIds[j]`. |
 | 409 | `DEFAULT_WAREHOUSE` | The operation would leave the tenant without an active default warehouse: delete or deactivation of the default warehouse, or making an inactive warehouse the default (spec 011). `errors` has `isActive` except on delete. |

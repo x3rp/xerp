@@ -211,6 +211,21 @@ modifier groups — `isRequired` and `allowsMultiple` are group data (I8); a lin
 key's and active (I2); a bill's warehouse is its station's (I11). New error codes: `IDEMPOTENCY_KEY_REUSED`,
 `BILL_CHANGED`, `BILL_NOT_EMPTY`, `ARTICLE_NOT_SALEABLE`, `MODIFIERS_INVALID`.
 
+### Batch P05a — price change, discounts, voids (spec P05a, written)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `pos.voidReasonRequired` | A void of a line or of a bill with lines needs a reason | `true` | No: a void may have no reason. |
+| `pos.priceChangeReasonRequired` | A price change needs a reason | `false` | Yes: refused without one (`VALIDATION_FAILED`). |
+| `pos.discountReasonRequired` | A discount needs a reason | `false` | Yes: refused without one (`VALIDATION_FAILED`). |
+| `pos.lineRemovalAllowed` | A line may be removed from an open bill without a trace | `true` | No: removal refused (`LINE_REMOVAL_NOT_ALLOWED`); mistakes are voided. |
+
+4 rules; the registry then has 70. Invariants of the same spec (P05a §6.2): a sensitive act needs an operator
+session whatever `pos.operatorSessionRequired` says (I2, I8); the right of each act and second-operator approval
+are role data and P02's check (ADR-0022/6); price and discount bounds — percent `0 < x ≤ 100`, an amount not above
+its base (I8, I10); amounts and the distribution of a bill discount (I8); a voided line or bill is never changed
+or deleted (I4, I8). New error codes: `DISCOUNT_EXCEEDS_AMOUNT`, `LINE_REMOVAL_NOT_ALLOWED`; `BILL_NOT_EMPTY` retired.
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a
