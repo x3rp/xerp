@@ -141,6 +141,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-18 — orkestrator napravio `xerp-pos` (zaseban repozitorij, lokalno `8b40b5c`, bez remotea): spajanje uređaja, jelovnik iz P04 ili iz kategorija (P01), PIN prijava (P02), račun s opcijama i napomenama, otvoreni računi u pregledniku do P05, traženje i čitač barkoda, naplata s povratom, predračun 80 mm; `seed.py` pravi probni kafić.
 - 2026-10-18 — review P02: tražene 2 male izmjene koda (whoami za POS ključ, pos_authorize nije samo čitanje) i 3 testa (AC-60 bio pogrešan); unio orkestrator na `close/P02`; 785 unit + 2147 integracijskih, svi prolaze; ponovni review OK; P02 spojen u `main` i pushan. Tester i builder kreću na P03.
 - 2026-10-18 — testovi za P03 i P04 napisani; spec P05 commitan (računi na POS-u, verzija i BILL_CHANGED, ključevi idempotentnosti, feed promjena s kursorom; 5 pravila, 9 alata); builder radi P03.
+- 2026-10-18 — kod za P03 gotov (`e49ad87`); orkestratorov test: 822 unit + 2201/2209 integracijskih, 8 pada (registar pravila u testovima 012/013, AC45 utrka brisanja); čeka review i ispravke. Spec P05a commitan (`be72153`). Builder radi P04 na P03, tester testove za P05. Limit potrošen ~19:45.
 
 ## Odluke vlasnika
 
