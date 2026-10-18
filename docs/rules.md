@@ -177,6 +177,23 @@ ingredients are `stock` articles (I8, `RECIPE_NOT_ALLOWED`, `ARTICLE_NOT_STOCKED
 and type, and the type of an article with a recipe, are frozen while used (I6); bounds of `priceDelta`,
 `sortOrder` and of 20 groups per article (I10). New error code: `RECIPE_NOT_ALLOWED`.
 
+### Batch P04 — POS stations and menus (spec P04, written)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `posStation.codeChangeable`, `posMenu.codeChangeable` | The code of a POS station / menu may be changed | `true` | As the `codeChangeable` rules of batch 013. |
+| `posStation.nameUnique`, `posMenu.nameUnique` | Names of POS stations / menus must be unique | `false` | As the `nameUnique` rules of batch 013. |
+| `posStation.warehouseRequired` | The warehouse must be named on a POS station | `false` | Yes: an omitted warehouse is an error instead of the default warehouse. |
+| `posMenu.unpricedArticleAllowed` | An article without a sales price may be put on a menu | `true` | No: such a button is refused (`VALIDATION_FAILED`). |
+| `posMenu.repeatedArticleAllowed` | An article may appear on several buttons of one menu | `true` | No: a second button for it is refused (`VALIDATION_FAILED`). |
+| `pos.searchOutsideMenuAllowed` | The till's search finds articles that are not on its menu | `false` | Yes: the lookup searches every active article. |
+
+8 rules; the registry then has 61. Invariants of the same spec (P04 §6.2): a station has a warehouse (I11);
+its premises and device codes (1–20 letters and digits) are unique as a pair in the tenant, because they name
+one sequence of receipt numbers (I7; form to be confirmed with owner decision 8); layout bounds — 50 pages,
+200 buttons per page, a 20 × 20 grid, one button per cell, labels of 50, colours `#RRGGBB` (I8, I9, I10); a
+category page has no hand-placed buttons (I8); the menu read's content and its version (I9). No new error code.
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a
