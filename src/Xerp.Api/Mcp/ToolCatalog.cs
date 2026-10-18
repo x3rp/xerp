@@ -454,7 +454,7 @@ public static class ToolCatalog
             Input(["id"], IdOf("session to end")),
             (services, input, ct) => services.GetRequiredService<PosSessionOperations>().EndAsync(input, ct)),
 
-        XerpTool.For<AuthorizeInput, PosAuthorizationDto>("pos_authorize", ToolKind.Read,
+        XerpTool.For<AuthorizeInput, PosAuthorizationDto>("pos_authorize", ToolKind.Create,
             "Asks whether the operator of a session may do a sensitive act, before doing it: allowed when the operator's role has the `right`, "
             + "or when a second operator whose role has it approves with `approverCode` and `approverPin` (an approver given is always checked). "
             + "Returns `{ right, operator, approvedBy }`; `approvedBy` is null when the operator's own right sufficed. Changes nothing except the approver's failed-PIN count. "

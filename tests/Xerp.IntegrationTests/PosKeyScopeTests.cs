@@ -13,7 +13,7 @@ namespace Xerp.IntegrationTests;
 [Collection(XerpCollection.Name)]
 public class PosKeyScopeTests(XerpFixture app)
 {
-    /// <summary>R33: the tools that map to the operations of R32 (<c>whoami</c> is left open: docs/questions/P02-q.md, Q1).</summary>
+    /// <summary>R33: the tools that map to the operations of R32, <c>whoami</c> included (docs/questions/P02-q.md, Q1).</summary>
     private static readonly string[] PosTools =
     [
         "pos_role_list", "pos_role_get", "pos_operator_list", "pos_operator_get",
@@ -22,7 +22,7 @@ public class PosKeyScopeTests(XerpFixture app)
         "article_barcode_list", "article_barcode_get", "article_category_list", "article_category_get",
         "tax_rate_list", "tax_rate_get", "payment_method_list", "payment_method_get",
         "uom_list", "uom_get", "warehouse_list", "warehouse_get", "partner_list", "partner_get",
-        "rule_list", "rule_get",
+        "rule_list", "rule_get", "whoami",
     ];
 
     private sealed record Till(PosSetup S, TestKey Key, Guid Unit, Guid Article, Guid Category, Guid TaxRate, Guid PaymentMethod,
@@ -171,6 +171,12 @@ public class PosKeyScopeTests(XerpFixture app)
             McpAssert.JsonEqual(expected, actual.RootElement, $"GET {path} differs between a full and a pos key");
         }
 
+        using (var whoami = await t.Key.Client.GetAsync("/api/v1/whoami"))
+        {
+            var who = await HttpAssert.JsonAsync(whoami, HttpStatusCode.OK);
+            Assert.Equal(t.Key.Id, who.GetProperty("actor").GetProperty("apiKeyId").GetGuid());
+        }
+
         var session = await Pos.StartAsync(t.Key.Client, "ANA", PosSetup.AnaPin);
         Assert.Equal(t.Key.Id, session.GetProperty("apiKeyId").GetGuid());
         await Pos.GetSessionAsync(t.Key.Client, session.Id());
@@ -187,9 +193,11 @@ public class PosKeyScopeTests(XerpFixture app)
         var t = await TillAsync();
         await using var mcp = await app.McpAsync(t.Key.Key);
 
-        var names = (await mcp.Client.ListToolsAsync()).Select(tool => tool.ProtocolTool.Name).Where(n => n != "whoami").ToArray();
+        var names = (await mcp.Client.ListToolsAsync()).Select(tool => tool.ProtocolTool.Name).ToArray();
 
         Assert.Equal(PosTools.Order(StringComparer.Ordinal), names.Order(StringComparer.Ordinal));
+        var who = await mcp.OkAsync("whoami", new { });
+        Assert.Equal(t.Key.Id, who.GetProperty("actor").GetProperty("apiKeyId").GetGuid());
         await mcp.ErrorAsync("rule_set", new { key = Rules.NegativeStock, value = true }, "FORBIDDEN");
         await mcp.ErrorAsync("pos_operator_create", new { code = "NEW", name = "New", roleId = t.S.Waiter.Id(), pin = "1111" }, "FORBIDDEN");
         await mcp.ErrorAsync("api_key_list", new { }, "FORBIDDEN");

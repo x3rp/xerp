@@ -33,6 +33,7 @@ public static partial class PosAllowList
     /// <summary>The operations outside <c>/pos/</c> a <c>pos</c> key may do: reads only (R32).</summary>
     public static IReadOnlyList<PosOperation> Reads { get; } =
     [
+        new("GET", "/whoami", "whoami"),
         new("GET", "/articles", "article_list"),
         new("GET", "/articles/{id}", "article_get"),
         new("GET", "/articles/by-code/{code}", null),

@@ -139,7 +139,7 @@ public class PosRuleIsolationAndMcpTests(XerpFixture app)
         }
         using (var replaceRole = await y.Client.PutAsync($"{Pos.Roles}/{role}", HttpAssert.Raw(Pos.RoleBodyOf(x.Waiter).ToJsonString())))
             await HttpAssert.NotFoundAsync(replaceRole);
-        using (var replaceOp = await Pos.PutOperatorAsync(y.Client, op, Pos.OperatorBodyOf(x.Ana).With("roleId", null)))
+        using (var replaceOp = await Pos.PutOperatorAsync(y.Client, op, Pos.OperatorBodyOf(x.Ana)))
             await HttpAssert.NotFoundAsync(replaceOp);
         using (var setPin = await Pos.SendSetPinAsync(y.Client, op, "1111"))
             await HttpAssert.NotFoundAsync(setPin);
@@ -260,5 +260,33 @@ public class PosRuleIsolationAndMcpTests(XerpFixture app)
         using (var r = await Pos.SendAuthorizeAsync(s.Http, ended.Id(), "refund"))
             httpEnded = await Pos.NotActiveAsync(r);
         AssertSameRefusal(httpEnded, await s.Mcp.ErrorAsync("pos_authorize", new { sessionId = ended.Id(), right = "refund" }, "SESSION_NOT_ACTIVE", "sessionId"));
+    }
+
+    // ---- Section 5 annotations of the six non-master tools (P02-q Q2) ----
+
+    [Fact]
+    public async Task S5_The_six_non_master_tools_carry_the_annotations_of_section_5()
+    {
+        var tenant = await app.NewTenantAsync();
+        await using var mcp = await app.McpAsync(tenant.Key);
+        var tools = (await mcp.Client.ListToolsAsync()).ToDictionary(tool => tool.ProtocolTool.Name, tool => tool.ProtocolTool.Annotations);
+
+        // name -> (readOnlyHint, destructiveHint, idempotentHint); a read-only tool is not judged on the other two.
+        var expected = new (string Name, bool ReadOnly, bool? Destructive, bool? Idempotent)[]
+        {
+            ("pos_operator_set_pin", false, true, true),
+            ("pos_session_start", false, false, false),
+            ("pos_session_end", false, false, true),
+            ("pos_session_get", true, null, null),
+            ("pos_session_list", true, null, null),
+            ("pos_authorize", false, false, false),
+        };
+        foreach (var (name, readOnly, destructive, idempotent) in expected)
+        {
+            Assert.True(tools.TryGetValue(name, out var a) && a is not null, $"{name} is not listed with annotations.");
+            Assert.True(a!.ReadOnlyHint == readOnly, $"{name}: readOnlyHint {a.ReadOnlyHint}, expected {readOnly}");
+            if (destructive is not null) Assert.True(a.DestructiveHint == destructive, $"{name}: destructiveHint {a.DestructiveHint}, expected {destructive}");
+            if (idempotent is not null) Assert.True(a.IdempotentHint == idempotent, $"{name}: idempotentHint {a.IdempotentHint}, expected {idempotent}");
+        }
     }
 }
