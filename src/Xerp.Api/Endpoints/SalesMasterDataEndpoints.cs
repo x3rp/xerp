@@ -31,11 +31,11 @@ public static class SalesMasterDataEndpoints
         MapBarcodes(v1);
     }
 
-    private static ListCodedMastersInput BindList(QueryBinder binder) =>
+    internal static ListCodedMastersInput BindList(QueryBinder binder) =>
         new(binder.Text("search"), binder.Bool("isActive"), binder.Int("limit"), binder.Int("offset"));
 
     /// <summary>The six operations of <c>/units-of-measure</c> (spec 001, 4.3) for one sales master.</summary>
-    private static void MapCodedMaster<TOperations, TEntity, TDto, TInput, TValues, TList>(
+    internal static void MapCodedMaster<TOperations, TEntity, TDto, TInput, TValues, TList>(
         IEndpointRouteBuilder v1, string route, Func<TDto, Guid> idOf, string[] ownFilters,
         Func<QueryBinder, TList> bindList,
         Func<TOperations, TList, CancellationToken, Task<Result<PagedResult<TDto>>>> list)

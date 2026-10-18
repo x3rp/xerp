@@ -3,6 +3,7 @@ using Xerp.Domain.Catalog;
 using Xerp.Domain.Inventory;
 using Xerp.Domain.Orders;
 using Xerp.Domain.Partners;
+using Xerp.Domain.Pos;
 using Xerp.Domain.Rules;
 using Xerp.Domain.Sales;
 using Xerp.Domain.Tenancy;
@@ -30,6 +31,9 @@ public interface IXerpDb
 
     DbSet<ArticleTaxRate> ArticleTaxRates { get; }
     DbSet<ArticleBarcode> ArticleBarcodes { get; }
+    DbSet<PosRole> PosRoles { get; }
+    DbSet<PosOperator> PosOperators { get; }
+    DbSet<PosSession> PosSessions { get; }
     DbSet<Warehouse> Warehouses { get; }
     DbSet<StockDocument> StockDocuments { get; }
     DbSet<StockDocumentLine> StockDocumentLines { get; }
@@ -65,6 +69,13 @@ public interface IXerpDb
     /// everything committed before the lock was obtained.
     /// </summary>
     Task<T> SerializedPerTenantAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Locks the operator's row (<c>SELECT ... FOR UPDATE</c>) and returns it, tracked and read after the lock, so
+    /// that its PIN counters are changed by one sign-in at a time (spec P02, R11). Only inside
+    /// <see cref="SerializedPerTenantAsync{T}"/>; null when the operator does not exist (any more).
+    /// </summary>
+    Task<PosOperator?> LockPosOperatorAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Runs the reads of <paramref name="work"/> against one snapshot of the database: every query in it sees

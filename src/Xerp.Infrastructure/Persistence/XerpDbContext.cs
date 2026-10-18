@@ -8,6 +8,7 @@ using Xerp.Domain.Common;
 using Xerp.Domain.Inventory;
 using Xerp.Domain.Orders;
 using Xerp.Domain.Partners;
+using Xerp.Domain.Pos;
 using Xerp.Domain.Rules;
 using Xerp.Domain.Sales;
 using Xerp.Domain.Tenancy;
@@ -33,6 +34,9 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
     public DbSet<ArticleSalesData> ArticleSalesData => Set<ArticleSalesData>();
     public DbSet<ArticleTaxRate> ArticleTaxRates => Set<ArticleTaxRate>();
     public DbSet<ArticleBarcode> ArticleBarcodes => Set<ArticleBarcode>();
+    public DbSet<PosRole> PosRoles => Set<PosRole>();
+    public DbSet<PosOperator> PosOperators => Set<PosOperator>();
+    public DbSet<PosSession> PosSessions => Set<PosSession>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<StockDocument> StockDocuments => Set<StockDocument>();
     public DbSet<StockDocumentLine> StockDocumentLines => Set<StockDocumentLine>();
@@ -68,6 +72,8 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
             e.Property(k => k.Id).ValueGeneratedNever();
             e.Property(k => k.Name).HasMaxLength(ApiKey.NameMaxLength);
             e.Property(k => k.ActorType).HasMaxLength(10).HasConversion(v => v.ToName(), v => ActorTypeNames.Parse(v));
+            // Spec P02, 4.D: the migration makes every key that existed before full.
+            e.Property(k => k.Scope).HasMaxLength(10).HasConversion(v => v.ToName(), v => ApiKeyScopeNames.Parse(v));
             e.Property(k => k.KeyHash).HasMaxLength(64);
             e.HasIndex(k => k.KeyHash).IsUnique();
             // Provenance of a key (spec 003, section 3): audit columns like any other, so they include TenantId.
@@ -162,6 +168,36 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
         modelBuilder.Entity<TaxRate>().Property(t => t.Rate).HasPrecision(7, SalesDataRules.RateDecimalPlaces);
         modelBuilder.Entity<PaymentMethod>().Property(m => m.Kind)
             .HasMaxLength(10).HasConversion(v => v.ToName(), v => PaymentMethodKindNames.Parse(v));
+
+        // Spec P02, section 3: roles and operators are masters; a session names its operator and its key.
+        MapCodedMaster<PosRole>(modelBuilder, "PosRoles");
+        MapCodedMaster<PosOperator>(modelBuilder, "PosOperators");
+        modelBuilder.Entity<PosOperator>(e =>
+        {
+            e.Property(o => o.PinHash).HasMaxLength(200);
+            e.HasOne<PosRole>().WithMany()
+                .HasForeignKey(o => new { o.TenantId, o.RoleId })
+                .HasPrincipalKey(r => new { r.TenantId, r.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<PosSession>(e =>
+        {
+            e.ToTable("PosSessions");
+            e.Property(s => s.Id).ValueGeneratedNever();
+            e.HasIndex(s => new { s.TenantId, s.ApiKeyId, s.EndedAt });
+            e.HasOne<PosOperator>().WithMany()
+                .HasForeignKey(s => new { s.TenantId, s.OperatorId })
+                .HasPrincipalKey(o => new { o.TenantId, o.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(s => new { s.TenantId, s.ApiKeyId })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(s => new { s.TenantId, s.CreatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         // At most one row per article; the article's sales data is deleted with it by the application (R14).
         modelBuilder.Entity<ArticleSalesData>(e =>
@@ -515,6 +551,19 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
         var result = await work(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
+    }
+
+    public async Task<PosOperator?> LockPosOperatorAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("There is no current tenant.");
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("An operator is locked only inside a transaction.");
+        await Database.ExecuteSqlAsync(
+            $"""SELECT 1 FROM "PosOperators" WHERE "Id" = {id} AND "TenantId" = {tenantId} FOR UPDATE""", cancellationToken);
+        // Read after the lock: a copy tracked from before it may hold counters another sign-in has changed since.
+        if (PosOperators.Local.FirstOrDefault(o => o.Id == id) is { } tracked)
+            Entry(tracked).State = EntityState.Detached;
+        return await PosOperators.SingleOrDefaultAsync(o => o.Id == id, cancellationToken);
     }
 
     public async Task<T> AtOneMomentAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken cancellationToken = default)
