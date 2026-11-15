@@ -37,6 +37,7 @@ public static class Problems
             or ErrorCodes.CodeChangeNotAllowed or ErrorCodes.NameTaken or ErrorCodes.TaxIdTaken or ErrorCodes.BarcodeTaken
             or ErrorCodes.OperatorSignInFailed or ErrorCodes.SessionNotActive => StatusCodes.Status409Conflict,
         ErrorCodes.PayloadTooLarge => StatusCodes.Status413PayloadTooLarge,
+        ErrorCodes.RateLimited => StatusCodes.Status429TooManyRequests,
         _ => StatusCodes.Status500InternalServerError,
     };
 

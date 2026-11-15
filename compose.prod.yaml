@@ -1,0 +1,64 @@
+# Production overlay. Use together with compose.yaml:
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d --build
+#
+# Differences from the development stack: HTTPS through Caddy (certificates from Let's Encrypt for
+# XERP_DOMAIN), the API is not published to the host at all, database password and admin key are
+# required, JSON logs, a request rate limit per client address, restart on failure, and a daily
+# database backup. See docs/deployment.md.
+
+services:
+  db:
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+
+  api:
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      Xerp__AdminKey: ${XERP_ADMIN_KEY:?Set XERP_ADMIN_KEY (at least 32 characters) in .env}
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB:-xerp};Username=${POSTGRES_USER:-xerp};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      # Only Caddy can reach the API, so its X-Forwarded-For is the real client address.
+      Xerp__ForwardedHeaders: "true"
+      Xerp__RateLimit__PermitsPerMinute: ${XERP_RATE_LIMIT_PER_MINUTE:-600}
+      Logging__Console__FormatterName: json
+      ASPNETCORE_ENVIRONMENT: Production
+
+  proxy:
+    image: caddy:2.10
+    restart: unless-stopped
+    environment:
+      XERP_DOMAIN: ${XERP_DOMAIN:?Set XERP_DOMAIN (the public host name of the API) in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  backup:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-xerp}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      PGDATABASE: ${POSTGRES_DB:-xerp}
+      XERP_BACKUP_KEEP_DAYS: ${XERP_BACKUP_KEEP_DAYS:-14}
+      XERP_BACKUP_INTERVAL_SECONDS: ${XERP_BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./deploy/backup-loop.sh:/backup-loop.sh:ro
+      - ${XERP_BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["bash", "/backup-loop.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -3,7 +3,21 @@
 Glavni pregled petlje arhitekt -> tester -> builder -> review -> merge. Redoslijed koraka dolazi iz
 `docs/roadmap.md` (piše ga arhitekt); ovaj dokument vodi orkestrator i ažurira ga nakon svakog koraka.
 
-Zadnje ažuriranje: 2026-10-10 13:15
+Zadnje ažuriranje: 2026-11-15 17:15
+
+## Način rada od 2026-11-15
+
+Vlasnik je odustao od petlje arhitekt -> tester -> builder (troši previše kredita). Dalje radi jedan agent sam:
+kod, testovi, provjera i merge. Cilj koji je vlasnik odabrao: **samo ERP u produkcijskom stanju, bez POS-a**.
+POS grane (`feat/P03-*`, `feat/P04-*`, `tests/P05-*`) ostaju netaknute i nisu u `main`-u; P01 i P02 jesu.
+
+Produkcijsko očvršćivanje (`chore/production-hardening`) ✅:
+- rate limiting po adresi klijenta na `/api/v1` i `/mcp` (`429 RATE_LIMITED`, `Retry-After`), uključuje se postavkom
+- forwarded headers iza reverse proxyja
+- `compose.prod.yaml`: Caddy s automatskim HTTPS-om, API nije izložen, obavezne tajne, JSON logovi, restart, dnevni backup
+- `scripts/backup.sh`, `scripts/restore.sh`; GitHub Actions CI; upute `docs/deployment.md`
+- provjereno: 785 unit + 2150 integracijskih testova; produkcijski stack podignut na localhostu (HTTPS, 308 s HTTP-a,
+  429, JSON logovi), backup -> restore krug provjeren
 
 ## Opseg MVP-a
 
@@ -142,6 +156,8 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-18 — review P02: tražene 2 male izmjene koda (whoami za POS ključ, pos_authorize nije samo čitanje) i 3 testa (AC-60 bio pogrešan); unio orkestrator na `close/P02`; 785 unit + 2147 integracijskih, svi prolaze; ponovni review OK; P02 spojen u `main` i pushan. Tester i builder kreću na P03.
 - 2026-10-18 — testovi za P03 i P04 napisani; spec P05 commitan (računi na POS-u, verzija i BILL_CHANGED, ključevi idempotentnosti, feed promjena s kursorom; 5 pravila, 9 alata); builder radi P03.
 - 2026-10-18 — kod za P03 gotov (`e49ad87`); orkestratorov test: 822 unit + 2201/2209 integracijskih, 8 pada (registar pravila u testovima 012/013, AC45 utrka brisanja); čeka review i ispravke. Spec P05a commitan (`be72153`). Builder radi P04 na P03, tester testove za P05. Limit potrošen ~19:45.
+
+- 2026-11-15 — vlasnik ugasio petlju s tri agenta; jedan agent sam dovodi ERP u produkcijsko stanje (bez POS-a). Baseline na `main`: 785 unit + 2147 integracijskih, svi prolaze. Spojeno produkcijsko očvršćivanje (vidi "Način rada").
 
 ## Odluke vlasnika
 
