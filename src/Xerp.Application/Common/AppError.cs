@@ -35,6 +35,7 @@ public static class ErrorCodes
     public const string SessionNotActive = "SESSION_NOT_ACTIVE";
     public const string OperatorRightMissing = "OPERATOR_RIGHT_MISSING";
     public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
+    public const string RateLimited = "RATE_LIMITED";
     public const string InternalError = "INTERNAL_ERROR";
 }
 
@@ -71,6 +72,10 @@ public sealed record AppError(
     /// <summary>The request was refused unread because its body is larger than the transport accepts.</summary>
     public static AppError PayloadTooLarge(long maxBytes) =>
         new(ErrorCodes.PayloadTooLarge, $"The request body is larger than the limit of {maxBytes} bytes.");
+
+    /// <summary>The client sent more requests than the deployment allows in the current window.</summary>
+    public static AppError RateLimited(int permitsPerMinute) =>
+        new(ErrorCodes.RateLimited, $"Too many requests: the limit is {permitsPerMinute} per minute per client address. Retry after the Retry-After header.");
 
     public static AppError Internal() => new(ErrorCodes.InternalError, "An unexpected error occurred.");
 

@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - run: dotnet restore Xerp.slnx
+      - run: dotnet build Xerp.slnx --no-restore -c Release
+      # Integration tests start PostgreSQL 18 with Testcontainers; the runner has Docker.
+      - run: dotnet test Xerp.slnx --no-build -c Release --logger "trx" --results-directory TestResults
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: TestResults
+
+  docker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f src/Xerp.Api/Dockerfile -t xerp-api:ci .
+      - run: docker compose -f compose.yaml -f compose.prod.yaml config -q
+        env:
+          POSTGRES_PASSWORD: ci
+          XERP_ADMIN_KEY: ci-admin-key-0123456789-abcdefghijklmnop
+          XERP_DOMAIN: example.invalid

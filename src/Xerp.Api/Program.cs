@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Xerp.Api.Endpoints;
 using Xerp.Api.Http;
@@ -65,7 +66,23 @@ if (!app.Services.GetRequiredService<AdminKeySetting>().IsConfigured)
         "Xerp:AdminKey is not configured (or is shorter than {MinLength} characters): admin routes reject every request.",
         AdminKey.MinLength);
 
+// Behind a reverse proxy (compose.prod.yaml) the client address and scheme come from X-Forwarded-*.
+// Only switch this on when the API is reachable through the proxy alone: any client could forge the headers otherwise.
+if (app.Configuration.GetValue<bool>("Xerp:ForwardedHeaders"))
+{
+    var forwarded = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        ForwardLimit = 1,
+    };
+    // The proxy's address on the container network is not fixed; trust is given by the network layout instead.
+    forwarded.KnownIPNetworks.Clear();
+    forwarded.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwarded);
+}
+
 app.UseMiddleware<ErrorHandlingMiddleware>();
+app.UseMiddleware<RateLimitMiddleware>();
 app.UseMiddleware<ApiV1Middleware>();
 
 app.MapGet("/health", async (XerpDbContext db, CancellationToken ct) =>
