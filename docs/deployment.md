@@ -25,7 +25,7 @@ Needs: a Linux server with Docker Engine and the Compose plugin (2.24 or newer),
 and ports 80 and 443 open to the internet (80 is needed for the certificate challenge).
 
 ```bash
-git clone git@github.com:antissimo/xerp.git && cd xerp
+git clone git@github.com:x3rp/xerp.git && cd xerp
 cp .env.example .env
 ```
 
