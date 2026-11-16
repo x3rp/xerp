@@ -3,7 +3,7 @@
 Glavni pregled petlje arhitekt -> tester -> builder -> review -> merge. Redoslijed koraka dolazi iz
 `docs/roadmap.md` (piše ga arhitekt); ovaj dokument vodi orkestrator i ažurira ga nakon svakog koraka.
 
-Zadnje ažuriranje: 2026-11-15 17:15
+Zadnje ažuriranje: 2026-11-16 21:30
 
 ## Način rada od 2026-11-15
 
@@ -18,6 +18,14 @@ Produkcijsko očvršćivanje (`chore/production-hardening`) ✅:
 - `scripts/backup.sh`, `scripts/restore.sh`; GitHub Actions CI; upute `docs/deployment.md`
 - provjereno: 785 unit + 2150 integracijskih testova; produkcijski stack podignut na localhostu (HTTPS, 308 s HTTP-a,
   429, JSON logovi), backup -> restore krug provjeren
+
+Radni nalozi (spec W01, `docs/specs/W01-work-orders.md`) ✅ — zahtjev vlasnika 2026-11-16:
+- sastavnica artikla (komponente po jedinici proizvoda), radni nalog nacrt -> otpušten (`WO-…`) -> završen / otkazan / storniran
+- završetak u jednoj transakciji knjiži izdatnicu komponenti i primku proizvoda (obični skladišni dokumenti, ista pravila zaliha)
+- 3 nova konfigurabilna pravila (`production.*`, zadano `true`), 12 MCP alata (ukupno 112), 51 pravilo u registru
+- provjereno: 785 unit + 2161 integracijski test, svi prolaze (11 novih)
+
+Odgođeno na zahtjev vlasnika (2026-11-16): audit log (020), dozvole po ključu (021), row-level security (023).
 
 ## Opseg MVP-a
 
@@ -59,6 +67,7 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 012 | Konfigurabilna pravila (booleovi prekidači): registar, vrijednosti po tenantu, prvih 6 pravila | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 013 | Konfigurabilna pravila: matični podaci (formati, duljine, obavezna polja) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| W01 | Sastavnice i radni nalozi (proizvodnja) | ✅ | ✅ | ✅ | — | ✅ |
 | 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
 | P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -158,6 +167,7 @@ Napomena: testove za 001 i 002 pisao je builder; od 003 nadalje piše ih tester.
 - 2026-10-18 — kod za P03 gotov (`e49ad87`); orkestratorov test: 822 unit + 2201/2209 integracijskih, 8 pada (registar pravila u testovima 012/013, AC45 utrka brisanja); čeka review i ispravke. Spec P05a commitan (`be72153`). Builder radi P04 na P03, tester testove za P05. Limit potrošen ~19:45.
 
 - 2026-11-15 — vlasnik ugasio petlju s tri agenta; jedan agent sam dovodi ERP u produkcijsko stanje (bez POS-a). Baseline na `main`: 785 unit + 2147 integracijskih, svi prolaze. Spojeno produkcijsko očvršćivanje (vidi "Način rada").
+- 2026-11-16 — vlasnik pitao za radne naloge (nisu postojali; proizvodnja je u viziji bila izvan opsega). Traženo: prvo 020/021/023, pa radne naloge; zatim promijenjeno u "samo radne naloge". Spec W01 izgrađen i spojen u `main`.
 
 ## Odluke vlasnika
 

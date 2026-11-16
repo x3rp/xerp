@@ -195,6 +195,34 @@ public static class RuleRegistry
         + "Sessions that are already active stay until the operator's next sign-in.",
         Default: true);
 
+    public static readonly RuleDefinition ProductionComponentsMayDifferFromBom = new(
+        "production.componentsMayDifferFromBom",
+        "The components of a work order may differ from the bill of materials",
+        "Judges creating and replacing a work order that gives its own lines (work_order_create, work_order_update). "
+        + "When true, the lines may name any stock articles in any planned quantities, also for a product without a bill of materials. "
+        + "When false, lines that are given must be exactly what the product's bill of materials gives for the order's quantity - the same components, in the same order, with the same planned quantities - otherwise VALIDATION_FAILED with key lines; "
+        + "leave lines out to take them from the bill. A work order without lines is always taken from the bill, whatever the value. "
+        + "Work orders that already exist are not judged again.",
+        Default: true);
+
+    public static readonly RuleDefinition ProductionConsumptionMayDifferFromPlan = new(
+        "production.consumptionMayDifferFromPlan",
+        "Consumption at completion may differ from the plan",
+        "Judges completing a work order (work_order_complete). "
+        + "When true, the consumed quantity of a component line may be given freely, 0 included. "
+        + "When false, a consumed quantity that differs from what the line plans for the produced quantity (planned quantity scaled by producedQuantity / quantity) is refused with VALIDATION_FAILED, key lines[i].consumedQuantity. "
+        + "A line whose consumption is not given always consumes that scaled quantity.",
+        Default: true);
+
+    public static readonly RuleDefinition ProductionProducedQuantityMayDifferFromPlan = new(
+        "production.producedQuantityMayDifferFromPlan",
+        "The produced quantity may differ from the work order's quantity",
+        "Judges completing a work order (work_order_complete). "
+        + "When true, producedQuantity may be less or more than the order's quantity; components then default to the planned quantities scaled to what was produced. "
+        + "When false, a producedQuantity other than the order's quantity is refused with VALIDATION_FAILED, key producedQuantity. "
+        + "Omitting producedQuantity always produces the order's quantity.",
+        Default: true);
+
     /// <summary>The four masters, each with its rules.</summary>
     public static IReadOnlyList<MasterRuleSet> Masters { get; } = [Uom, Article, Partner, Warehouse];
 
@@ -209,6 +237,7 @@ public static class RuleRegistry
             ArticleCategoryRequired, ArticleTaxRateRequired, ArticleSalesPriceRequired, ArticleBarcodeUnique, .. SalesMasters.SelectMany(m => m.All),
             .. PosRole.All, .. PosOperator.All, PosOperatorRoleRequired, PosSecondOperatorApprovalAllowed,
             PosSeveralOperatorsPerDeviceAllowed, PosOperatorOnSeveralDevicesAllowed,
+            ProductionComponentsMayDifferFromBom, ProductionConsumptionMayDifferFromPlan, ProductionProducedQuantityMayDifferFromPlan,
         ])
         .OrderBy(r => r.Key, StringComparer.Ordinal)
         .ToList();

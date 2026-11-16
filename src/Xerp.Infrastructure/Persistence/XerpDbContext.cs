@@ -9,6 +9,7 @@ using Xerp.Domain.Inventory;
 using Xerp.Domain.Orders;
 using Xerp.Domain.Partners;
 using Xerp.Domain.Pos;
+using Xerp.Domain.Production;
 using Xerp.Domain.Rules;
 using Xerp.Domain.Sales;
 using Xerp.Domain.Tenancy;
@@ -47,6 +48,9 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
     public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
     public DbSet<SalesOrderLine> SalesOrderLines => Set<SalesOrderLine>();
+    public DbSet<BomComponent> BomComponents => Set<BomComponent>();
+    public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
+    public DbSet<WorkOrderLine> WorkOrderLines => Set<WorkOrderLine>();
     public DbSet<RuleValue> RuleValues => Set<RuleValue>();
     public DbSet<RuleChange> RuleChanges => Set<RuleChange>();
 
@@ -486,6 +490,84 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
             e.HasOne<ApiKey>().WithMany()
                 .HasForeignKey(c => new { c.TenantId, c.ChangedBy })
                 .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Spec W01: the bill of materials of a product. Both articles are of the same tenant and restrict deletes:
+        // an article that is a component cannot be deleted; a product's own bill is deleted with it by the application.
+        modelBuilder.Entity<BomComponent>(e =>
+        {
+            e.ToTable("BomComponents");
+            e.HasKey(c => new { c.TenantId, c.ArticleId, c.LineNo });
+            e.Property(c => c.Quantity).HasPrecision(18, QuantityRules.DecimalPlaces);
+            e.HasOne<Article>().WithMany()
+                .HasForeignKey(c => new { c.TenantId, c.ArticleId })
+                .HasPrincipalKey(a => new { a.TenantId, a.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            // Its index (TenantId, ComponentId) also serves "is this article a component".
+            e.HasOne<Article>().WithMany()
+                .HasForeignKey(c => new { c.TenantId, c.ComponentId })
+                .HasPrincipalKey(a => new { a.TenantId, a.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(c => new { c.TenantId, c.UpdatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Spec W01: a work order and its component lines. The stock documents of its completion are referenced, never owned.
+        modelBuilder.Entity<WorkOrder>(e =>
+        {
+            e.ToTable("WorkOrders");
+            e.Property(o => o.Id).ValueGeneratedNever();
+            e.Property(o => o.Status).HasMaxLength(20).HasConversion(v => v.ToName(), v => WorkOrderStatusNames.Parse(v));
+            e.Property(o => o.Number).HasMaxLength(WorkOrder.NumberMaxLength);
+            e.Property(o => o.Reference).HasMaxLength(StockDocument.ReferenceMaxLength);
+            e.Property(o => o.Note).HasMaxLength(StockDocument.NoteMaxLength);
+            e.Property(o => o.Quantity).HasPrecision(18, QuantityRules.DecimalPlaces);
+            e.Property(o => o.ProducedQuantity).HasPrecision(18, QuantityRules.DecimalPlaces);
+            e.HasIndex(o => new { o.TenantId, o.Number }).IsUnique();
+            e.HasAlternateKey(o => new { o.TenantId, o.Id });
+            e.HasMany(o => o.Lines).WithOne()
+                .HasForeignKey(l => new { l.TenantId, l.WorkOrderId })
+                .HasPrincipalKey(o => new { o.TenantId, o.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.Navigation(o => o.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+            e.HasOne<Article>().WithMany()
+                .HasForeignKey(o => new { o.TenantId, o.ArticleId })
+                .HasPrincipalKey(a => new { a.TenantId, a.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Warehouse>().WithMany()
+                .HasForeignKey(o => new { o.TenantId, o.WarehouseId })
+                .HasPrincipalKey(w => new { w.TenantId, w.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StockDocument>().WithMany()
+                .HasForeignKey(o => new { o.TenantId, o.IssueDocumentId })
+                .HasPrincipalKey(d => new { d.TenantId, d.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StockDocument>().WithMany()
+                .HasForeignKey(o => new { o.TenantId, o.ReceiptDocumentId })
+                .HasPrincipalKey(d => new { d.TenantId, d.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            foreach (var actor in new[] { nameof(WorkOrder.CreatedBy), nameof(WorkOrder.UpdatedBy), nameof(WorkOrder.ReleasedBy),
+                         nameof(WorkOrder.CompletedBy), nameof(WorkOrder.CancelledBy), nameof(WorkOrder.ReversedBy) })
+                e.HasOne<ApiKey>().WithMany()
+                    .HasForeignKey(nameof(WorkOrder.TenantId), actor)
+                    .HasPrincipalKey(nameof(ApiKey.TenantId), nameof(ApiKey.Id))
+                    .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<WorkOrderLine>(e =>
+        {
+            e.ToTable("WorkOrderLines");
+            e.Property(l => l.Id).ValueGeneratedNever();
+            e.Property(l => l.PlannedQuantity).HasPrecision(18, QuantityRules.DecimalPlaces);
+            e.Property(l => l.ConsumedQuantity).HasPrecision(18, QuantityRules.DecimalPlaces);
+            e.Ignore(l => l.Entry);
+            e.HasIndex(l => new { l.TenantId, l.WorkOrderId, l.LineNo }).IsUnique();
+            e.HasOne<Article>().WithMany()
+                .HasForeignKey(l => new { l.TenantId, l.ArticleId })
+                .HasPrincipalKey(a => new { a.TenantId, a.Id })
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

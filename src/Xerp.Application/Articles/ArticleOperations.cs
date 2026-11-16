@@ -190,7 +190,11 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
     /// <summary>Spec 005, R24-R26; spec 009, R37, R38: a line of a stock document or of an order, whatever its status, names the article.</summary>
     private async Task<bool> IsUsedAsync(Guid articleId, CancellationToken cancellationToken) =>
         await db.StockDocumentLines.AnyAsync(l => l.ArticleId == articleId, cancellationToken)
-        || await OrderReads.AnyLineForArticleAsync(db, articleId, cancellationToken);
+        || await OrderReads.AnyLineForArticleAsync(db, articleId, cancellationToken)
+        // Spec W01: a bill of materials (as product or component) and a work order of any status count too.
+        || await db.BomComponents.AnyAsync(c => c.ArticleId == articleId || c.ComponentId == articleId, cancellationToken)
+        || await db.WorkOrders.AnyAsync(w => w.ArticleId == articleId, cancellationToken)
+        || await db.WorkOrderLines.AnyAsync(l => l.ArticleId == articleId, cancellationToken);
 
     /// <summary>
     /// Deletes an article no stock document uses, together with its conversions (spec 007, R11): they are the
@@ -231,7 +235,7 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
     }
 
     private static AppError InUse() =>
-        AppError.InUse("The article is used by stock documents or orders and cannot be deleted. Deactivate it instead (isActive = false).");
+        AppError.InUse("The article is used by stock documents, orders, bills of materials or work orders and cannot be deleted. Deactivate it instead (isActive = false).");
 
     /// <summary>Saves the tracked article and returns its representation, translating what only the database can decide.</summary>
     private async Task<Result<ArticleDto>> SaveAndReadAsync(Article article, ArticleValues values, CancellationToken cancellationToken)

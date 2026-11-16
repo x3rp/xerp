@@ -4,6 +4,7 @@ using Xerp.Domain.Inventory;
 using Xerp.Domain.Orders;
 using Xerp.Domain.Partners;
 using Xerp.Domain.Pos;
+using Xerp.Domain.Production;
 using Xerp.Domain.Rules;
 using Xerp.Domain.Sales;
 using Xerp.Domain.Tenancy;
@@ -52,6 +53,12 @@ public interface IXerpDb
     DbSet<PurchaseOrderLine> PurchaseOrderLines { get; }
     DbSet<SalesOrder> SalesOrders { get; }
     DbSet<SalesOrderLine> SalesOrderLines { get; }
+
+    /// <summary>Spec W01: the bills of materials, one set of lines per product article.</summary>
+    DbSet<BomComponent> BomComponents { get; }
+
+    DbSet<WorkOrder> WorkOrders { get; }
+    DbSet<WorkOrderLine> WorkOrderLines { get; }
 
     /// <summary>The values the tenant has set for rules (ADR-0020): a rule without a row is at its default.</summary>
     DbSet<RuleValue> RuleValues { get; }

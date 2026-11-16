@@ -6,6 +6,7 @@ using Xerp.Application.Identity;
 using Xerp.Application.Orders;
 using Xerp.Application.Partners;
 using Xerp.Application.Pos;
+using Xerp.Application.Production;
 using Xerp.Application.Rules;
 using Xerp.Application.Sales;
 using Xerp.Application.Stock;
@@ -1203,5 +1204,138 @@ public static class ToolCatalog
 
         // ---- POS operators, roles and rights (spec P02, section 5)
         .. PosTools,
+
+        // ---- production: bills of materials and work orders (spec W01, section 5)
+        .. ProductionTools,
+    ];
+
+    private const string ProductionRuleHint =
+        " This company's rules decide how far a work order may depart from its plan (`rule_list` with `group` = `production`); a refusal's `rules` names the rule that refused.";
+
+    private static (string, System.Text.Json.Nodes.JsonObject)[] WorkOrderFields =>
+    [
+        ("articleId", Uuid("The `id` of the stock article to produce (see `article_list`).")),
+        ("quantity", Number("How much to produce, in the article's base unit; greater than 0, at most 6 decimals.")),
+        ("plannedDate", Text("When production is planned, YYYY-MM-DD.")),
+        ("warehouseId", NullableUuid("The warehouse the components are taken from and the product goes to; omit or null for the tenant's default warehouse.")),
+        ("lines", ArrayOf(
+            "The components and how much of each is planned, in each component's base unit. Omit to take them from the article's bill of materials "
+            + "(each component's quantity per unit × `quantity`, rounded to 6 decimals).", 1, 200, [],
+            ("articleId", Uuid("The `id` of a stock article consumed by production.")),
+            ("plannedQuantity", Number("How much of it is planned, in its base unit; greater than 0.")))),
+        ("reference", NullableText("Optional reference, at most 100 characters on one line.")),
+        ("note", NullableText("Optional note, at most 2000 characters.")),
+    ];
+
+    private static XerpTool[] ProductionTools =>
+    [
+        XerpTool.For<BomAddressInput, BomDto>("bom_get", ToolKind.Read,
+            "Returns the bill of materials of an article: which stock articles go into one base unit of it, and how much of each (in each component's base unit). "
+            + "`components` is empty when the article has none. `NOT_FOUND`: no such article in this tenant.",
+            Input(["articleId"], ArticleIdOf("whose bill of materials to read")),
+            (services, input, ct) => services.GetRequiredService<BomOperations>().GetAsync(input, ct)),
+
+        XerpTool.For<SetBomToolInput, BomDto>("bom_set", ToolKind.Update,
+            "Sets the whole bill of materials of a stock article, replacing what it had: the components, in order, with the quantity of each per ONE base unit of the article. "
+            + "Example: 1 pcs of a table takes 4 pcs of legs and 0.5 m2 of board. Work orders already created keep their lines. " + Validation + " "
+            + "`NOT_FOUND`: no such article. `REFERENCE_NOT_FOUND` / `REFERENCE_INACTIVE`: a component is unknown or inactive (`errors` names `components[i].articleId`). "
+            + "`ARTICLE_NOT_STOCKED`: the article or a component is a service; only stock articles are produced and consumed.",
+            Input(["articleId", "components"],
+            [
+                ArticleIdOf("to produce (the product)"),
+                ("components", ArrayOf("The components, 1 to 200; an article may not be its own component.", 1, 200, [],
+                    ("articleId", Uuid("The `id` of a stock article that goes into the product.")),
+                    ("quantity", Number("How much of it one base unit of the product takes, in the component's base unit; greater than 0, at most 6 decimals.")))),
+            ]),
+            (services, input, ct) => services.GetRequiredService<BomOperations>().SetAsync(input, ct)),
+
+        XerpTool.For<BomAddressInput, BomDeleted>("bom_delete", ToolKind.Delete,
+            "Deletes the bill of materials of an article; returns `{ \"deleted\": true }`. Work orders keep their lines. `NOT_FOUND`: no such article, or it has no bill.",
+            Input(["articleId"], ArticleIdOf("whose bill of materials to delete")),
+            (services, input, ct) => services.GetRequiredService<BomOperations>().DeleteAsync(input, ct)),
+
+        XerpTool.For<ListWorkOrdersInput, PagedResult<WorkOrderSummaryDto>>("work_order_list", ToolKind.Read,
+            "Lists the tenant's work orders, newest first, with paging; each item has `lineCount` instead of the lines. Filters combine with AND. " + Validation,
+            Input([],
+            [
+                ("status", Text("Return only work orders in this status. `draft`: editable. `released`: numbered, waiting for production. `completed`: production booked. `cancelled`, `reversed`: final.",
+                    "draft", "released", "completed", "cancelled", "reversed")),
+                ("articleId", Uuid("Return only work orders producing the article with this `id`.")),
+                ("warehouseId", Uuid("Return only work orders in the warehouse with this `id`.")),
+                Search("the work order number or the reference"),
+                .. Paging,
+            ]),
+            (services, input, ct) => services.GetRequiredService<WorkOrderOperations>().ListAsync(input, ct)),
+
+        XerpTool.For<WorkOrderAddressInput, WorkOrderDto>("work_order_get", ToolKind.Read,
+            "Returns one work order with its component lines, addressed by `id` or by `number` (exactly one). `issueDocument` and `receiptDocument` are the stock documents its completion posted. "
+            + "`VALIDATION_FAILED`: both or neither of `id` and `number`. `NOT_FOUND`: no such work order; a draft has no number yet.",
+            Input([],
+            [
+                ("id", Uuid("The work order's `id`. Give either `id` or `number`, not both.")),
+                ("number", Text("The number of a released work order, for example `WO-000001`, in any letter case.")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<WorkOrderOperations>().FindAsync(input, ct)),
+
+        XerpTool.For<WorkOrderInput, WorkOrderDto>("work_order_create", ToolKind.Create,
+            "Creates a work order as a draft: produce `quantity` of a stock article in one warehouse from its components. Without `lines` the components come from the article's bill of materials (`bom_set`). "
+            + "A draft moves no stock: release it with `work_order_release` to give it a number, then book production with `work_order_complete`. " + Validation + " "
+            + "`REFERENCE_NOT_FOUND` / `REFERENCE_INACTIVE`: the article, warehouse or a component is unknown or inactive. `ARTICLE_NOT_STOCKED`: the article or a component is a service." + ProductionRuleHint,
+            Input(["articleId", "quantity", "plannedDate"], WorkOrderFields),
+            (services, input, ct) => services.GetRequiredService<WorkOrderOperations>().CreateAsync(input, ct)),
+
+        XerpTool.WithId<ReplaceWorkOrderInput, WorkOrderDto>("work_order_update", ToolKind.Update,
+            "Replaces a draft work order as a whole, with the same arguments as `work_order_create` (`lines` omitted: from the bill of materials again). "
+            + "`NOT_FOUND`: no such work order. `INVALID_STATE`: it is no longer a draft. " + Validation + ProductionRuleHint,
+            Input(["id", "articleId", "quantity", "plannedDate"], [IdOf("draft work order to replace"), .. WorkOrderFields]),
+            (services, id, input, ct) => services.GetRequiredService<WorkOrderOperations>().ReplaceAsync(id, input, ct)),
+
+        XerpTool.For<RecordIdInput, WorkOrderDeleted>("work_order_delete", ToolKind.Delete,
+            "Deletes a draft work order with its lines; returns `{ \"deleted\": true }`. `NOT_FOUND`: no such work order. `INVALID_STATE`: it is not a draft (cancel a released one instead).",
+            Input(["id"], IdOf("draft work order to delete")),
+            (services, input, ct) => services.GetRequiredService<WorkOrderOperations>().DeleteAsync(input.Id, ct)),
+
+        XerpTool.For<RecordIdInput, WorkOrderDto>("work_order_release", ToolKind.Post,
+            "Releases a draft work order: it gets its number (`WO-…`) and can no longer be edited or deleted. "
+            + "`NOT_FOUND`: no such work order. `INVALID_STATE`: it is not a draft. `REFERENCE_INACTIVE`: the article, the warehouse or a component is inactive.",
+            Input(["id"], IdOf("draft work order to release")),
+            (services, input, ct) => services.GetRequiredService<WorkOrderOperations>().ReleaseAsync(input.Id, ct)),
+
+        XerpTool.For<CompleteWorkOrderToolInput, WorkOrderDto>("work_order_complete", ToolKind.Post,
+            "Books production of a draft or released work order, permanently: in one step an issue (`SI-…`) takes the consumed components out of the warehouse and a receipt (`SR-…`) puts the produced article in, "
+            + "both posted, with the work order's number as their reference. A draft is released on the way. "
+            + "All arguments except `id` are optional: `producedQuantity` defaults to the order's quantity, and each line consumes its planned quantity scaled to what was produced unless `lines` gives its `consumedQuantity` (0 = none used). "
+            + Validation + " `NOT_FOUND`: no such work order. `INVALID_STATE`: it is completed, cancelled or reversed. `REFERENCE_INACTIVE`: a master is inactive. "
+            + "`INSUFFICIENT_STOCK`: the components are not on hand (rule `stock.negativeStockAllowed`); `errors` names `lines[i].consumedQuantity` with i = lineNo - 1. "
+            + "`STOCK_RESERVED`: the components are reserved by sales orders (rule `sales.reservedStockProtected`). Nothing is posted when it is refused." + ProductionRuleHint,
+            Input(["id"],
+            [
+                IdOf("work order to complete"),
+                ("documentDate", Text("The date of both stock documents, YYYY-MM-DD; default today (UTC).")),
+                ("producedQuantity", Number("How much was actually produced, in the article's base unit; default the work order's quantity.")),
+                ("lines", ArrayOf("What was actually consumed of some lines; lines not named consume their planned quantity scaled to the produced quantity.", 0, 200, [],
+                    ("lineNo", Integer("The `lineNo` of the work order line.", 1)),
+                    ("consumedQuantity", Number("How much of the component was used, in its base unit; 0 or more.")))),
+            ]),
+            (services, input, ct) => services.GetRequiredService<WorkOrderOperations>().CompleteAsync(input, ct)),
+
+        XerpTool.For<RecordIdInput, WorkOrderDto>("work_order_cancel", ToolKind.Create,
+            "Cancels a released work order that will not be produced; nothing was booked, so nothing moves. Final. "
+            + "`NOT_FOUND`: no such work order. `INVALID_STATE`: it is not released (delete a draft; reverse a completed one).",
+            Input(["id"], IdOf("released work order to cancel")),
+            (services, input, ct) => services.GetRequiredService<WorkOrderOperations>().CancelAsync(input.Id, ct)),
+
+        XerpTool.For<ReverseWorkOrderToolInput, WorkOrderDto>("work_order_reverse", ToolKind.Reverse,
+            "Undoes a completed work order: its receipt is reversed (the product leaves the warehouse) and its issue is reversed (the components come back), and it becomes `reversed`. "
+            + "The stock documents of a work order can only be reversed this way, never alone with `stock_document_reverse`. "
+            + Validation + " `NOT_FOUND`: no such work order. `INVALID_STATE`: it is not completed. "
+            + "`INSUFFICIENT_STOCK`: the produced goods have already left the warehouse (`errors` names `producedQuantity`; rule `stock.negativeStockAllowed`). Nothing is reversed when it is refused.",
+            Input(["id"],
+            [
+                IdOf("completed work order to reverse"),
+                ("documentDate", Text("The date of the two reversing documents, YYYY-MM-DD, not before the completion; default today (UTC).")),
+                ("note", NullableText("Optional note on the reversing documents, at most 2000 characters.")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<WorkOrderOperations>().ReverseAsync(input, ct)),
     ];
 }

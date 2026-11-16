@@ -1058,6 +1058,189 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                     b.ToTable("PosSessions", (string)null);
                 });
 
+            modelBuilder.Entity("Xerp.Domain.Production.BomComponent", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ComponentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TenantId", "ArticleId", "LineNo");
+
+                    b.HasIndex("TenantId", "ComponentId");
+
+                    b.HasIndex("TenantId", "UpdatedBy");
+
+                    b.ToTable("BomComponents", (string)null);
+                });
+
+            modelBuilder.Entity("Xerp.Domain.Production.WorkOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CancelledBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CompletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("CompletedDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("IssueDocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateOnly>("PlannedDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal?>("ProducedQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<Guid?>("ReceiptDocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("ReleasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReleasedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReversedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReversedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ArticleId");
+
+                    b.HasIndex("TenantId", "CancelledBy");
+
+                    b.HasIndex("TenantId", "CompletedBy");
+
+                    b.HasIndex("TenantId", "CreatedBy");
+
+                    b.HasIndex("TenantId", "IssueDocumentId");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ReceiptDocumentId");
+
+                    b.HasIndex("TenantId", "ReleasedBy");
+
+                    b.HasIndex("TenantId", "ReversedBy");
+
+                    b.HasIndex("TenantId", "UpdatedBy");
+
+                    b.HasIndex("TenantId", "WarehouseId");
+
+                    b.ToTable("WorkOrders", (string)null);
+                });
+
+            modelBuilder.Entity("Xerp.Domain.Production.WorkOrderLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("ConsumedQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PlannedQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ArticleId");
+
+                    b.HasIndex("TenantId", "WorkOrderId", "LineNo")
+                        .IsUnique();
+
+                    b.ToTable("WorkOrderLines", (string)null);
+                });
+
             modelBuilder.Entity("Xerp.Domain.Rules.RuleChange", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2016,6 +2199,132 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Xerp.Domain.Production.BomComponent", b =>
+                {
+                    b.HasOne("Xerp.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Catalog.Article", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ArticleId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Catalog.Article", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ComponentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "UpdatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Xerp.Domain.Production.WorkOrder", b =>
+                {
+                    b.HasOne("Xerp.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Catalog.Article", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ArticleId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CancelledBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CompletedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Inventory.StockDocument", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "IssueDocumentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Xerp.Domain.Inventory.StockDocument", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReceiptDocumentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReleasedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "UpdatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "WarehouseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Xerp.Domain.Production.WorkOrderLine", b =>
+                {
+                    b.HasOne("Xerp.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Catalog.Article", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ArticleId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Production.WorkOrder", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("TenantId", "WorkOrderId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Xerp.Domain.Rules.RuleChange", b =>
                 {
                     b.HasOne("Xerp.Domain.Tenancy.Tenant", null)
@@ -2224,6 +2533,11 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Xerp.Domain.Orders.SalesOrder", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("Xerp.Domain.Production.WorkOrder", b =>
                 {
                     b.Navigation("Lines");
                 });

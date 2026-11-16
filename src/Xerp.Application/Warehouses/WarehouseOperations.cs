@@ -147,6 +147,9 @@ public sealed class WarehouseOperations(IXerpDb db, ITenantContext context, IClo
                 // Spec 009, R37: so does an order of any status.
                 if (await OrderReads.AnyForWarehouseAsync(db, id, ct))
                     return InUse();
+                // Spec W01: so does a work order of any status.
+                if (await db.WorkOrders.AnyAsync(w => w.WarehouseId == id, ct))
+                    return InUse();
                 db.Warehouses.Remove(warehouse);
                 await db.SaveChangesAsync(ct);
                 return new WarehouseDeleted();

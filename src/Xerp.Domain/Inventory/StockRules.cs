@@ -47,6 +47,7 @@ public readonly record struct DocumentSeries(string Key, string Prefix)
 {
     public static readonly DocumentSeries PurchaseOrder = new("purchaseOrder", "PO");
     public static readonly DocumentSeries SalesOrder = new("salesOrder", "SO");
+    public static readonly DocumentSeries WorkOrder = new("workOrder", "WO");
 
     public static DocumentSeries Of(StockDocumentType type) => new(type.ToName(), DocumentNumber.Prefix(type));
 }

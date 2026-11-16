@@ -146,7 +146,7 @@ public class RuleBuilderTests(XerpFixture app)
     public async Task AC05_A_stored_value_whose_key_is_no_rule_is_not_listed_and_nothing_fails()
     {
         var s = await Orders.SetupAsync(app);
-        var before = await Rules.ListAsync(s.Http);
+        var before = await Rules.ListAsync(s.Http, "?limit=100");
         // Written directly: no operation can store a key that is no rule. Among them the keys of the first text of the spec.
         foreach (var key in new[] { "stock.negativeStock", "quantity.decimals", "nope", "Stock.NegativeStockAllowed", "document.maxLines" })
             Assert.Equal(1, await app.ExecuteSqlAsync(
@@ -154,7 +154,7 @@ public class RuleBuilderTests(XerpFixture app)
                 ("t", s.Tenant.Id), ("key", key), ("k", s.Tenant.ApiKeyId)));
 
         // Not listed, not counted, not found - and the six rules are untouched.
-        var list = await Rules.ListAsync(s.Http);
+        var list = await Rules.ListAsync(s.Http, "?limit=100");
         McpAssert.JsonEqual(before, list, "A stored value with an unknown key changed the list of rules");
         Assert.Equal(Rules.All, list.RuleKeys());
         Assert.Equal(0, (await Rules.ListAsync(s.Http, "?source=tenant")).Total());
