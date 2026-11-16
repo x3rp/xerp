@@ -197,10 +197,27 @@ public class McpToolListTests(XerpFixture app)
         new("pos_authorize", ["sessionId", "right", "approverCode", "approverPin"], ["sessionId", "right"], "-"),
     ];
 
+    // Spec W01, section 5: bills of materials and work orders.
+    private static readonly Expected[] SpecW01Tools =
+    [
+        new("bom_get", ["articleId"], ["articleId"], "read"),
+        new("bom_set", ["articleId", "components"], ["articleId", "components"], "update"),
+        new("bom_delete", ["articleId"], ["articleId"], "delete"),
+        new("work_order_list", ["status", "articleId", "warehouseId", "search", "limit", "offset"], [], "read"),
+        new("work_order_get", ["id", "number"], [], "read"),
+        new("work_order_create", ["articleId", "quantity", "plannedDate", "warehouseId", "lines", "reference", "note"], ["articleId", "quantity", "plannedDate"], "create"),
+        new("work_order_update", ["id", "articleId", "quantity", "plannedDate", "warehouseId", "lines", "reference", "note"], ["id", "articleId", "quantity", "plannedDate"], "update"),
+        new("work_order_delete", ["id"], ["id"], "delete"),
+        new("work_order_release", ["id"], ["id"], "post"),
+        new("work_order_complete", ["id", "documentDate", "producedQuantity", "lines"], ["id"], "post"),
+        new("work_order_cancel", ["id"], ["id"], "create"),
+        new("work_order_reverse", ["id", "documentDate", "note"], ["id"], "post"),
+    ];
+
     // The complete list (spec 004, section 5.3; specs 005 to 012, P01 and P02, section 5): a new tool must be added here by its spec.
     private static readonly Expected[] Tools =
         [.. Spec003Tools, .. Spec004Tools, .. Spec005Tools, .. Spec006Tools, .. Spec007Tools, .. Spec009Tools, .. Spec010Tools,
-            .. Spec011Tools, .. Spec012Tools, .. SpecP01Tools, .. SpecP02Tools];
+            .. Spec011Tools, .. Spec012Tools, .. SpecP01Tools, .. SpecP02Tools, .. SpecW01Tools];
 
     private async Task<Dictionary<string, Tool>> ListToolsAsync(string? key = null)
     {
@@ -213,7 +230,7 @@ public class McpToolListTests(XerpFixture app)
     private static string[] Sorted(IEnumerable<string> values) => values.Order(StringComparer.Ordinal).ToArray();
 
     [Fact]
-    public async Task AC40_S004_AC90_S005_AC80_S006_AC80_S007_AC80_S009_AC85_S010_AC85_S011_AC70_S012_AC12_SP01_AC12_SP02_AC12_Tool_list_is_exactly_the_100_tools_of_the_specs()
+    public async Task AC40_S004_AC90_S005_AC80_S006_AC80_S007_AC80_S009_AC85_S010_AC85_S011_AC70_S012_AC12_SP01_AC12_SP02_AC12_Tool_list_is_exactly_the_112_tools_of_the_specs()
     {
         var tools = await ListToolsAsync();
 
@@ -228,7 +245,8 @@ public class McpToolListTests(XerpFixture app)
         Assert.Equal(5, Spec012Tools.Length);
         Assert.Equal(22, SpecP01Tools.Length);
         Assert.Equal(16, SpecP02Tools.Length);
-        Assert.Equal(100, Tools.Length);
+        Assert.Equal(12, SpecW01Tools.Length);
+        Assert.Equal(112, Tools.Length);
         Assert.Equal(Sorted(Tools.Select(t => t.Name)), Sorted(tools.Keys));
         Assert.DoesNotContain("api_key_create", tools.Keys);
         Assert.DoesNotContain(tools.Keys, name => name.StartsWith("tenant", StringComparison.OrdinalIgnoreCase));
@@ -381,7 +399,7 @@ public class McpToolListTests(XerpFixture app)
         var tools = await ListToolsAsync();
 
         // "No new tool; tools/list still returns exactly the 37 tools of spec 007" — 45 since spec 009, 53 since spec 010, 57 since spec 011, 62 since spec 012, 84 since spec P01, 100 since spec P02.
-        Assert.Equal(100, Tools.Length);
+        Assert.Equal(112, Tools.Length);
         Assert.Equal(Sorted(Tools.Select(t => t.Name)), Sorted(tools.Keys));
         Assert.DoesNotContain(tools.Keys, name => name.Contains("count", StringComparison.OrdinalIgnoreCase));
         // The one place where a criterion asks for words in a description (AC-80).
@@ -642,7 +660,7 @@ public class McpToolListTests(XerpFixture app)
         // Section 5: create and update gain "partnerId? (uuid or null)", list gains "partnerId? (uuid)"; the tool list is unchanged.
         var tools = await ListToolsAsync();
 
-        Assert.Equal(100, tools.Count);
+        Assert.Equal(112, tools.Count);
         var schema = tools[toolName].InputSchema;
         Assert.True(schema.GetProperty("properties").TryGetProperty("partnerId", out var property), $"{toolName} has no partnerId property.");
         Assert.True(property.TryGetProperty("description", out var description) && !string.IsNullOrWhiteSpace(description.GetString()),
@@ -702,7 +720,7 @@ public class McpToolListTests(XerpFixture app)
     {
         var tools = await ListToolsAsync();
 
-        Assert.Equal(100, tools.Count);
+        Assert.Equal(112, tools.Count);
         AssertMetadata(tools, SpecP02Tools);
         // The annotations of the master tools are those of P01; the spec does not pin those of the other five.
         AssertAnnotations(tools, SpecP02Tools.Where(t => t.Kind != "-").ToArray());
@@ -728,7 +746,7 @@ public class McpToolListTests(XerpFixture app)
     {
         var tools = await ListToolsAsync();
 
-        Assert.Equal(100, tools.Count);
+        Assert.Equal(112, tools.Count);
         AssertMetadata(tools, SpecP01Tools);
         AssertAnnotations(tools, SpecP01Tools);
         string Description(string name) => tools[name].Description ?? "";
@@ -762,7 +780,7 @@ public class McpToolListTests(XerpFixture app)
         // The literal list of AC-12: the 57 of spec 011 and these five.
         foreach (var name in new[] { "rule_list", "rule_get", "rule_set", "rule_reset", "rule_change_list" })
             Assert.Contains(name, tools.Keys);
-        Assert.Equal(100, tools.Count);
+        Assert.Equal(112, tools.Count);
         AssertMetadata(tools, Spec012Tools);
         AssertAnnotations(tools, Spec012Tools);
         // "rule_set, rule_reset not read-only, idempotent, not destructive."

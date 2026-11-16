@@ -26,7 +26,7 @@ public class RuleIsolationTests(XerpFixture app)
     private static void AssertSixDefaults(JsonElement list)
     {
         // 30 since spec 013 (013/AC-01, item 1), 40 since spec P01 (P01/AC-01, item 1), 48 since spec P02 (P02/AC-01, item 1).
-        Assert.Equal(48, list.Total());
+        Assert.Equal(51, list.Total());
         Assert.Equal(Rules.All, list.RuleKeys());
         foreach (var rule in list.Items())
         {
@@ -39,7 +39,7 @@ public class RuleIsolationTests(XerpFixture app)
     public async Task AC100_Values_and_history_of_X_do_not_exist_for_Y_and_Y_is_judged_by_its_own_defaults()
     {
         var (x, y) = await WorldAsync();
-        var untouched = await Rules.ListAsync(y.Http);
+        var untouched = await Rules.ListAsync(y.Http, "?limit=100");
 
         AssertSixDefaults(untouched);
         Assert.Equal(0, (await Rules.ListAsync(y.Http, "?source=tenant")).Total());
@@ -130,7 +130,7 @@ public class RuleIsolationTests(XerpFixture app)
         await using var mcpX = await app.McpAsync(x.Tenant.Key);
         await using var mcpY = await app.McpAsync(y.Tenant.Key);
 
-        var rules = await mcpY.OkAsync("rule_list", new { });
+        var rules = await mcpY.OkAsync("rule_list", new { limit = 100 });
         var own = await mcpY.OkAsync("rule_list", new { source = "tenant" });
         var changes = await mcpY.OkAsync("rule_change_list", new { });
         var byKey = await mcpY.OkAsync("rule_change_list", new { key = Rules.NegativeStock });

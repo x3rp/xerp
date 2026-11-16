@@ -226,6 +226,19 @@ are role data and P02's check (ADR-0022/6); price and discount bounds — percen
 its base (I8, I10); amounts and the distribution of a bill discount (I8); a voided line or bill is never changed
 or deleted (I4, I8). New error codes: `DISCOUNT_EXCEEDS_AMOUNT`, `LINE_REMOVAL_NOT_ALLOWED`; `BILL_NOT_EMPTY` retired.
 
+### Batch W01 — bills of materials and work orders (spec W01, built)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `production.componentsMayDifferFromBom` | The components of a work order may differ from the bill of materials | `true` | No: given lines must equal what the bill gives for the quantity (`VALIDATION_FAILED`, key `lines`). |
+| `production.consumptionMayDifferFromPlan` | Consumption at completion may differ from the plan | `true` | No: a consumed quantity other than the scaled plan is refused (`lines[i].consumedQuantity`). |
+| `production.producedQuantityMayDifferFromPlan` | The produced quantity may differ from the work order's quantity | `true` | No: completion must produce exactly the order's quantity (`producedQuantity`). |
+
+A completion is also judged by `stock.negativeStockAllowed` and `sales.reservedStockProtected` (its issue of
+components is an ordinary posting), and a work order's reversal by `stock.negativeStockAllowed`. Invariants:
+the product and the components are stock articles; an article is not its own component; component lines 1–200;
+quantities as on stock documents; the stock documents of a completion are reversed only with their work order.
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a

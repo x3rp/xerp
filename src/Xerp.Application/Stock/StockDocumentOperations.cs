@@ -255,7 +255,21 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
                 return NotFound();
             if (!document.IsDraft)
                 return NotADraft(document, "posted again");
+            if (await PostWithinLockAsync(document, tenantRules, ct) is { } refused)
+                return refused;
+            await db.SaveChangesAsync(ct);
+            return await ToDtoAsync(document, ct);
+        }, cancellationToken);
 
+    /// <summary>
+    /// The posting of <see cref="PostAsync"/> after the document was found to be a draft: every check, then the
+    /// number, the entries and the balances - added to the unit of work, not saved. The caller holds the tenant's
+    /// lock, passes the rules it read under it and saves once; on an error it saves nothing. Spec W01 posts the
+    /// stock documents of a work order's completion with it, in the work order's transaction.
+    /// </summary>
+    internal async Task<AppError?> PostWithinLockAsync(StockDocument document, TenantRules tenantRules, CancellationToken ct)
+    {
+        {
             var lines = document.Lines.Select(l => l.Entry).ToList();
             // The factors are read here, inside the posting transaction and under the tenant's lock: a
             // conversion cannot be set or deleted between this read and the save (spec 007, section 11).
@@ -340,9 +354,9 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
             await StockBalances.AddAsync(db, TenantId(), entries, ct);
             // R25: from the base quantities the lines were posted with.
             order?.Fulfil(document.Fulfilment, overFulfilmentAllowed!.Value);
-            await db.SaveChangesAsync(ct);
-            return await ToDtoAsync(document, ct);
-        }, cancellationToken);
+            return null;
+        }
+    }
 
     /// <summary>
     /// Reverses a posted document (ADR-0013; spec 006, R11-R19): in one transaction a reversing document is
@@ -369,6 +383,27 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
             var original = await db.StockDocuments.Include(d => d.Lines).SingleOrDefaultAsync(d => d.Id == id, ct);
             if (original is null)
                 return NotFound();
+            // Spec W01: the documents of a work order's completion are undone with the work order, both at once.
+            if (await db.WorkOrders.Where(w => w.IssueDocumentId == id || w.ReceiptDocumentId == id).Select(w => w.Number).FirstOrDefaultAsync(ct) is { } workOrderNumber)
+                return AppError.InvalidState(
+                    $"The stock document was posted by the completion of work order {workOrderNumber} and is reversed only with it: use work_order_reverse (POST /work-orders/{{id}}/reverse).");
+            var reversal = await ReverseWithinLockAsync(original, values, tenantRules, ct);
+            if (!reversal.IsSuccess)
+                return reversal.Error;
+            await db.SaveChangesAsync(ct);
+            return await ToDtoAsync(reversal.Value, ct);
+        }, cancellationToken);
+    }
+
+    /// <summary>
+    /// The reversal of <see cref="ReverseAsync"/> once the original is found: every check, then the reversing
+    /// document, its entries and the balances - added to the unit of work, not saved. The caller holds the
+    /// tenant's lock and saves once; on an error it saves nothing.
+    /// </summary>
+    internal async Task<Result<StockDocument>> ReverseWithinLockAsync(
+        StockDocument original, StockReversalValues values, TenantRules tenantRules, CancellationToken ct)
+    {
+        {
             if (!original.CanBeReversed)
                 return NotReversible(original);
             if (StockDocumentValidation.ReversalDate(values.DocumentDate, original.DocumentDate) is { } dateError)
@@ -394,9 +429,8 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
             db.StockLedgerEntries.AddRange(reversing);
             // Spec 011, R21: a reversal is a posting too.
             await StockBalances.AddAsync(db, TenantId(), reversing, ct);
-            await db.SaveChangesAsync(ct);
-            return await ToDtoAsync(reversal, ct);
-        }, cancellationToken);
+            return reversal;
+        }
     }
 
     /// <summary>

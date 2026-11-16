@@ -11,6 +11,7 @@ using Xerp.Application.Orders;
 using Xerp.Application.Partners;
 using Xerp.Application.Ports;
 using Xerp.Application.Pos;
+using Xerp.Application.Production;
 using Xerp.Application.Rules;
 using Xerp.Application.Sales;
 using Xerp.Application.Stock;
@@ -54,6 +55,8 @@ builder.Services.AddScoped<PosRoleOperations>();
 builder.Services.AddScoped<PosOperatorOperations>();
 builder.Services.AddScoped<PosSignIn>();
 builder.Services.AddScoped<PosSessionOperations>();
+builder.Services.AddScoped<BomOperations>();
+builder.Services.AddScoped<WorkOrderOperations>();
 builder.Services.AddXerpMcpServer();
 
 var app = builder.Build();
@@ -104,6 +107,7 @@ v1.MapApiKeyEndpoints();
 v1.MapRuleEndpoints();
 v1.MapSalesMasterDataEndpoints();
 v1.MapPosEndpoints();
+v1.MapProductionEndpoints();
 
 // One operation = one HTTP endpoint + one MCP tool; both call the same Application operations.
 app.MapMcp(ApiV1Middleware.McpPath);
