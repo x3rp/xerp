@@ -34,3 +34,7 @@ jobs:
           POSTGRES_PASSWORD: ci
           XERP_ADMIN_KEY: ci-admin-key-0123456789-abcdefghijklmnop
           XERP_DOMAIN: example.invalid
+      - run: docker compose -f compose.yaml -f compose.tailscale.yaml config -q
+        env:
+          POSTGRES_PASSWORD: ci
+          XERP_ADMIN_KEY: ci-admin-key-0123456789-abcdefghijklmnop

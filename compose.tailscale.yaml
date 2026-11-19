@@ -1,0 +1,46 @@
+# Overlay for a home server reached only over Tailscale (e.g. an old laptop). Use together with compose.yaml:
+#
+#   docker compose -f compose.yaml -f compose.tailscale.yaml up -d --build
+#
+# Like compose.prod.yaml, but without Caddy and without any port open to the internet: the API listens on
+# 127.0.0.1:8000 of the host only, and `tailscale serve` on the host gives it HTTPS with a *.ts.net
+# certificate, reachable only by devices in your tailnet. See "Home server over Tailscale" in
+# docs/deployment.md.
+
+services:
+  db:
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+
+  api:
+    restart: unless-stopped
+    # Loopback only (from compose.yaml): tailscale serve on the host is the one way in.
+    ports: !override
+      - "127.0.0.1:${XERP_API_PORT:-8000}:8000"
+    environment:
+      Xerp__AdminKey: ${XERP_ADMIN_KEY:?Set XERP_ADMIN_KEY (at least 32 characters) in .env}
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB:-xerp};Username=${POSTGRES_USER:-xerp};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      # Every request arrives from the host through the same loopback port, so there is one client address
+      # for everyone: a per-address limit would throttle all devices together. Off by default here.
+      Xerp__RateLimit__PermitsPerMinute: ${XERP_RATE_LIMIT_PER_MINUTE:-0}
+      Logging__Console__FormatterName: json
+      ASPNETCORE_ENVIRONMENT: Production
+
+  backup:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-xerp}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      PGDATABASE: ${POSTGRES_DB:-xerp}
+      XERP_BACKUP_KEEP_DAYS: ${XERP_BACKUP_KEEP_DAYS:-14}
+      XERP_BACKUP_INTERVAL_SECONDS: ${XERP_BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./deploy/backup-loop.sh:/backup-loop.sh:ro
+      - ${XERP_BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["bash", "/backup-loop.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
