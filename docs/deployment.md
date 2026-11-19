@@ -54,6 +54,67 @@ Then create the first tenant with the admin key and store the tenant key it retu
 To save typing, put `COMPOSE_FILE=compose.yaml:compose.prod.yaml` into `.env`; plain `docker compose …`
 then uses both files. The commands below assume that.
 
+## Home server over Tailscale
+
+For a small installation on a machine at home or in the office (an old laptop is enough) that only your own
+devices use: no domain, no open ports, no router configuration. [Tailscale](https://tailscale.com) connects
+the server and your devices into a private network (tailnet) and gives the server an HTTPS name
+`https://<machine>.<tailnet>.ts.net`. Nothing is reachable from the internet.
+
+`compose.tailscale.yaml` replaces `compose.prod.yaml` here: the same `db`, `api` and `backup`, no Caddy, the
+API on `127.0.0.1:8000` of the host only, and no rate limit by default (behind `tailscale serve` every
+request comes from the same address).
+
+### 1. The machine
+
+- Install Debian or Ubuntu Server (no desktop needed), Docker Engine with the Compose plugin, and Tailscale
+  (`curl -fsSL https://tailscale.com/install.sh | sh`).
+- `sudo scripts/laptop-server-setup.sh` (after cloning, step 3): it keeps running with the lid closed, never
+  suspends, and starts Docker and Tailscale at boot.
+- In the BIOS/UEFI, if it has the option: *power on after AC loss* (often "AC Back", "Restore on AC Power
+  Loss"). The battery bridges short power cuts; leave the laptop on the charger. If the BIOS or the OS offers
+  a charge limit (e.g. 80 %), use it: a battery kept at 100 % all the time swells.
+- Turn on automatic security updates: `sudo apt install unattended-upgrades`.
+
+### 2. Tailscale
+
+```bash
+sudo tailscale up --ssh          # log in; --ssh lets you ssh to the machine over the tailnet
+```
+
+In the Tailscale admin console (login.tailscale.com):
+
+- **Machines → the server → Disable key expiry.** Otherwise the server drops out of the tailnet after 180 days.
+- **DNS → enable MagicDNS and HTTPS Certificates.** Needed for the `*.ts.net` name and its certificate.
+
+### 3. Xerp
+
+```bash
+git clone git@github.com:x3rp/xerp.git && cd xerp
+cp .env.example .env && chmod 600 .env
+# in .env: POSTGRES_PASSWORD (openssl rand -base64 24), XERP_ADMIN_KEY (openssl rand -base64 32),
+#          COMPOSE_FILE=compose.yaml:compose.tailscale.yaml
+docker compose up -d --build
+curl http://127.0.0.1:8000/health           # {"status":"ok","db":"ok"}
+
+sudo tailscale serve --bg 8000              # HTTPS on the tailnet name -> 127.0.0.1:8000; survives reboot
+tailscale serve status                      # shows https://<machine>.<tailnet>.ts.net
+```
+
+From any device in the tailnet: `curl https://<machine>.<tailnet>.ts.net/health`. Create the first tenant
+as in section 3 of `docs/getting-started.md`, with `https://<machine>.<tailnet>.ts.net/api/v1` as the base
+address, and connect an MCP client:
+
+```bash
+claude mcp add --transport http xerp https://<machine>.<tailnet>.ts.net/mcp \
+  --header "Authorization: Bearer <agent key>"
+```
+
+Do **not** use `tailscale funnel`: it would publish the API to the whole internet.
+
+Upgrade, backup and restore work as below. Copy the dumps off the laptop (its disk is the single copy),
+e.g. `rsync` from another machine in the tailnet: `rsync -a <machine>:xerp/backups/ ~/xerp-backups/`.
+
 ## Upgrade
 
 ```bash
