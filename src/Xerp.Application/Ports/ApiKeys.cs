@@ -21,6 +21,22 @@ public interface IPinHasher
     bool Verify(string hash, string pin);
 }
 
+/// <summary>A salted, slow hash of a user's password (spec U01); the same scheme as <see cref="IPinHasher"/>.</summary>
+public interface IPasswordHasher
+{
+    string Hash(string password);
+
+    /// <summary>Takes about the same time whether or not the password matches.</summary>
+    bool Verify(string hash, string password);
+}
+
+/// <summary>Spec U01: the tenants a sign-in can name, by code. Tenants are not tenant-owned rows.</summary>
+public interface ITenantDirectory
+{
+    /// <returns>The id of the active tenant with this code (case-insensitive), or null.</returns>
+    Task<Guid?> FindActiveByCodeAsync(string code, CancellationToken cancellationToken = default);
+}
+
 public interface IApiKeyHasher
 {
     /// <summary>Lower-case hex SHA-256 of the UTF-8 bytes of the full key string.</summary>
@@ -35,7 +51,8 @@ public sealed record ApiKeyRecord(
     bool IsActive,
     Guid TenantId,
     bool TenantIsActive,
-    ApiKeyScope Scope = ApiKeyScope.Full);
+    ApiKeyScope Scope = ApiKeyScope.Full,
+    DateTime? ExpiresAt = null);
 
 /// <summary>
 /// The one place that reads API keys without a tenant filter: authentication, before a tenant is known.

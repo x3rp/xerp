@@ -48,7 +48,7 @@ public class PosRuleIsolationAndMcpTests(XerpFixture app)
 
         var list = await Rules.ListAsync(tenant.Client, "?limit=500");
 
-        Assert.Equal(51, list.Total());
+        Assert.Equal(53, list.Total());
         Assert.Equal(Rules.All, list.RuleKeys());
         var expected = new (string Key, bool Default)[]
         {

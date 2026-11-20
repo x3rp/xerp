@@ -1565,6 +1565,9 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -1592,6 +1595,9 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("KeyHash")
@@ -1600,6 +1606,8 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "CreatedBy");
 
                     b.HasIndex("TenantId", "RevokedBy");
+
+                    b.HasIndex("TenantId", "UserId");
 
                     b.ToTable("ApiKeys", (string)null);
                 });
@@ -1637,6 +1645,65 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_Tenants_CodeLower");
 
                     b.ToTable("Tenants", (string)null);
+                });
+
+            modelBuilder.Entity("Xerp.Domain.Tenancy.User", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("FailedLoginAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LockedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreatedBy");
+
+                    b.HasIndex("TenantId", "UpdatedBy");
+
+                    b.HasIndex("TenantId", "Username")
+                        .IsUnique();
+
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("Xerp.Domain.Catalog.Article", b =>
@@ -2520,6 +2587,35 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TenantId", "RevokedBy")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Xerp.Domain.Tenancy.User", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "UserId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Xerp.Domain.Tenancy.User", b =>
+                {
+                    b.HasOne("Xerp.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Xerp.Domain.Tenancy.ApiKey", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "UpdatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Xerp.Domain.Inventory.StockDocument", b =>

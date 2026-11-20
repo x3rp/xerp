@@ -19,6 +19,10 @@ namespace Xerp.Application.Ports;
 public interface IXerpDb
 {
     DbSet<ApiKey> ApiKeys { get; }
+
+    /// <summary>Spec U01: people who sign in with username and password.</summary>
+    DbSet<User> Users { get; }
+
     DbSet<UnitOfMeasure> UnitsOfMeasure { get; }
     DbSet<Article> Articles { get; }
     DbSet<ArticleUnit> ArticleUnits { get; }

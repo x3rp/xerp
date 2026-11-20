@@ -48,7 +48,7 @@ public class SalesRuleIsolationAndMcpTests(XerpFixture app)
 
         var list = await Rules.ListAsync(tenant.Client, "?limit=500");
 
-        Assert.Equal(51, list.Total()); // 40 of P01 and the eight of P02 (P02/AC-01, item 1)
+        Assert.Equal(53, list.Total()); // 40 of P01 and the eight of P02 (P02/AC-01, item 1)
         Assert.Equal(Rules.All, list.RuleKeys());
         var expected = new (string Key, bool Default)[]
         {

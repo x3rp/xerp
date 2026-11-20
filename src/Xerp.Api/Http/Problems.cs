@@ -24,7 +24,7 @@ public static class Problems
     public static int StatusOf(string code) => code switch
     {
         ErrorCodes.ValidationFailed => StatusCodes.Status400BadRequest,
-        ErrorCodes.Unauthenticated => StatusCodes.Status401Unauthorized,
+        ErrorCodes.Unauthenticated or ErrorCodes.LoginFailed => StatusCodes.Status401Unauthorized,
         ErrorCodes.Forbidden or ErrorCodes.OperatorRightMissing => StatusCodes.Status403Forbidden,
         ErrorCodes.NotFound => StatusCodes.Status404NotFound,
         ErrorCodes.CodeTaken or ErrorCodes.InUse or ErrorCodes.InvalidState or ErrorCodes.CannotRevokeSelf
@@ -35,7 +35,7 @@ public static class Problems
             or ErrorCodes.OrderMismatch or ErrorCodes.QuantityExceedsOrder
             or ErrorCodes.DefaultWarehouse or ErrorCodes.StockReserved
             or ErrorCodes.CodeChangeNotAllowed or ErrorCodes.NameTaken or ErrorCodes.TaxIdTaken or ErrorCodes.BarcodeTaken
-            or ErrorCodes.OperatorSignInFailed or ErrorCodes.SessionNotActive => StatusCodes.Status409Conflict,
+            or ErrorCodes.OperatorSignInFailed or ErrorCodes.SessionNotActive or ErrorCodes.UsernameTaken => StatusCodes.Status409Conflict,
         ErrorCodes.PayloadTooLarge => StatusCodes.Status413PayloadTooLarge,
         ErrorCodes.RateLimited => StatusCodes.Status429TooManyRequests,
         _ => StatusCodes.Status500InternalServerError,

@@ -1,6 +1,7 @@
 using Xerp.Application.Common;
 using Xerp.Application.Identity;
 using Xerp.Application.Pos;
+using Xerp.Application.Ports;
 using Xerp.Domain.Tenancy;
 
 namespace Xerp.Api.Http;
@@ -22,7 +23,8 @@ public sealed class ApiV1Middleware(RequestDelegate next)
     /// <summary>The largest legitimate body (a document of 200 lines) is a few tens of kB.</summary>
     public const long MaxRequestBodyBytes = 1024 * 1024;
 
-    public async Task InvokeAsync(HttpContext context, CredentialResolver credentials, RequestActor actor, IConfiguration configuration)
+    public async Task InvokeAsync(
+        HttpContext context, CredentialResolver credentials, RequestActor actor, IConfiguration configuration, ITenantDirectory tenants)
     {
         var isMcp = context.Request.Path.StartsWithSegments(McpPath);
         if (!context.Request.Path.StartsWithSegments("/api/v1", out var rest) && !isMcp)
@@ -39,15 +41,23 @@ public sealed class ApiV1Middleware(RequestDelegate next)
             return;
         }
 
-        var credential = await credentials.ResolveAsync(BearerToken(context.Request), context.RequestAborted);
-        if (credential is null)
+        // Spec U01: POST /api/v1/login/{tenant} is the one route without a credential. It runs with the tenant
+        // its code names, and no key; an unknown or inactive tenant leaves the actor empty and the sign-in fails.
+        var loginTenant = !isMcp && HttpMethods.IsPost(context.Request.Method) ? LoginTenantCode(rest) : null;
+        var credential = loginTenant is null ? await credentials.ResolveAsync(BearerToken(context.Request), context.RequestAborted) : null;
+        if (loginTenant is not null)
+        {
+            if (await tenants.FindActiveByCodeAsync(loginTenant, context.RequestAborted) is { } loginTenantId)
+                actor.SetTenantOnly(loginTenantId);
+        }
+        else if (credential is null)
         {
             await Problems.WriteAsync(context, AppError.Unauthenticated());
             return;
         }
 
         var isAdminRoute = !isMcp && rest.StartsWithSegments("/admin");
-        if (isAdminRoute != credential is AdminCredential)
+        if (loginTenant is null && isAdminRoute != credential is AdminCredential)
         {
             await Problems.WriteAsync(context, AppError.Forbidden());
             return;
@@ -84,6 +94,15 @@ public sealed class ApiV1Middleware(RequestDelegate next)
         {
             await Problems.WriteAsync(context, AppError.NotFound("No such resource or operation."));
         }
+    }
+
+    /// <summary>The tenant code of <c>/login/{tenant}</c>, or null for any other path.</summary>
+    private static string? LoginTenantCode(PathString rest)
+    {
+        if (!rest.StartsWithSegments("/login", out var remainder) || remainder.Value is not { Length: > 1 } value)
+            return null;
+        var code = value[1..];
+        return code.Contains('/') || code.Length > 100 ? null : Uri.UnescapeDataString(code);
     }
 
     /// <summary>The route matched an endpoint of this method, and the allow-list does not name it.</summary>

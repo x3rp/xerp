@@ -223,6 +223,24 @@ public static class RuleRegistry
         + "Omitting producedQuantity always produces the order's quantity.",
         Default: true);
 
+    public static readonly RuleDefinition UsersLockAfterFailedLogins = new(
+        "users.lockAfterFailedLogins",
+        "A user is locked after repeated wrong passwords",
+        "Judges signing in with username and password (POST /login/{tenant}). "
+        + "When true, the fifth wrong password in a row locks the user for 15 minutes: every sign-in is then refused with LOGIN_FAILED, even with the right password, until the lock ends or a new password is set. "
+        + "When false, wrong passwords are not counted and no user is locked. "
+        + "A lock that is already in force stays until it ends.",
+        Default: true);
+
+    public static readonly RuleDefinition UsersShortPasswordsAllowed = new(
+        "users.shortPasswordsAllowed",
+        "Passwords may be shorter than 8 characters",
+        "Judges creating a user and setting a password (POST /users, POST /users/{id}/password). "
+        + "When false, a password shorter than 8 characters is refused with VALIDATION_FAILED, key password. "
+        + "When true, any non-empty password of at most 200 characters is accepted. "
+        + "Passwords that are already set are not judged again.",
+        Default: false);
+
     /// <summary>The four masters, each with its rules.</summary>
     public static IReadOnlyList<MasterRuleSet> Masters { get; } = [Uom, Article, Partner, Warehouse];
 
@@ -238,6 +256,7 @@ public static class RuleRegistry
             .. PosRole.All, .. PosOperator.All, PosOperatorRoleRequired, PosSecondOperatorApprovalAllowed,
             PosSeveralOperatorsPerDeviceAllowed, PosOperatorOnSeveralDevicesAllowed,
             ProductionComponentsMayDifferFromBom, ProductionConsumptionMayDifferFromPlan, ProductionProducedQuantityMayDifferFromPlan,
+            UsersLockAfterFailedLogins, UsersShortPasswordsAllowed,
         ])
         .OrderBy(r => r.Key, StringComparer.Ordinal)
         .ToList();

@@ -239,6 +239,16 @@ components is an ordinary posting), and a work order's reversal by `stock.negati
 the product and the components are stock articles; an article is not its own component; component lines 1–200;
 quantities as on stock documents; the stock documents of a completion are reversed only with their work order.
 
+### Batch U01 — users and sign-in (spec U01, built)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `users.lockAfterFailedLogins` | A user is locked after repeated wrong passwords | `true` | No: wrong passwords are not counted, nobody is locked. |
+| `users.shortPasswordsAllowed` | Passwords may be shorter than 8 characters | `false` | Yes: any non-empty password up to 200 characters. |
+
+Invariants: usernames 1–50 of `a-z 0-9 . _ -`, unique per tenant, stored in lower case; 5 failures lock for
+15 minutes; a session lasts 12 hours.
+
 ### Not a switch — what the first version listed as configurable and why it no longer is
 
 The owner's decision that a rule is a boolean leaves two honest places for a rule that was a number, a

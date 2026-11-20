@@ -26,7 +26,7 @@ public class RuleIsolationTests(XerpFixture app)
     private static void AssertSixDefaults(JsonElement list)
     {
         // 30 since spec 013 (013/AC-01, item 1), 40 since spec P01 (P01/AC-01, item 1), 48 since spec P02 (P02/AC-01, item 1).
-        Assert.Equal(51, list.Total());
+        Assert.Equal(53, list.Total());
         Assert.Equal(Rules.All, list.RuleKeys());
         foreach (var rule in list.Items())
         {

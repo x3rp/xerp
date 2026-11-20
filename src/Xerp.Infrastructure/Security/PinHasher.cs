@@ -8,7 +8,7 @@ namespace Xerp.Infrastructure.Security;
 /// PBKDF2-HMAC-SHA256 with a random 16-byte salt per PIN (spec P02, section 3). Stored as
 /// <c>pbkdf2-sha256$iterations$salt$hash</c>, so that the cost can be raised later without breaking old hashes.
 /// </summary>
-public sealed class PinHasher : IPinHasher
+public sealed class PinHasher : IPinHasher, IPasswordHasher
 {
     private const string Algorithm = "pbkdf2-sha256";
     private const int Iterations = 100_000;
