@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Xerp.Domain.Catalog;
 using Xerp.Domain.Inventory;
+using Xerp.Domain.Invoicing;
 using Xerp.Domain.Orders;
 using Xerp.Domain.Partners;
 using Xerp.Domain.Pos;
@@ -22,6 +23,13 @@ public interface IXerpDb
 
     /// <summary>Spec U01: people who sign in with username and password.</summary>
     DbSet<User> Users { get; }
+
+    /// <summary>Spec I01: at most one row, the tenant's own company data for its documents.</summary>
+    DbSet<CompanyProfile> CompanyProfiles { get; }
+
+    DbSet<Invoice> Invoices { get; }
+    DbSet<InvoiceLine> InvoiceLines { get; }
+    DbSet<InvoicePayment> InvoicePayments { get; }
 
     DbSet<UnitOfMeasure> UnitsOfMeasure { get; }
     DbSet<Article> Articles { get; }

@@ -239,6 +239,15 @@ components is an ordinary posting), and a work order's reversal by `stock.negati
 the product and the components are stock articles; an article is not its own component; component lines 1–200;
 quantities as on stock documents; the stock documents of a completion are reversed only with their work order.
 
+### Batch I01 — invoices (spec I01, built)
+
+| Key | Name | Default | Yes / no |
+|---|---|---|---|
+| `invoice.customerRequired` | An invoice must name a customer | `true` | No: invoices to no one in particular (retail). |
+| `invoice.backdatingAllowed` | An invoice may be dated before the last issued invoice | `false` | Yes: any issue date. |
+| `invoice.issueMovesStock` | Issuing an invoice issues its goods from stock | `false` | Yes: the issue posts a stock issue, the cancellation reverses it. |
+| `invoice.overpaymentAllowed` | Payments may exceed what an invoice is owed | `false` | Yes: any payment amount. |
+
 ### Batch U01 — users and sign-in (spec U01, built)
 
 | Key | Name | Default | Yes / no |

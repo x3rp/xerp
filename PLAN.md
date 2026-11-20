@@ -69,6 +69,7 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | W01 | Sastavnice i radni nalozi (proizvodnja) | ✅ | ✅ | ✅ | — | ✅ |
 | U01 | Korisnici i prijava imenom i lozinkom (sesijski ključ 12 h) | ✅ | ✅ | ✅ | — | ✅ |
+| I01 | Izlazni računi, plaćanja, storno, podaci o tvrtki | ✅ | ✅ | ✅ | — | ✅ |
 | 015 | Vrednovanje zaliha | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
 | | **— POS modul (zahtjev vlasnika 2026-10-13): nadogradnja na ERP, zaseban frontend `xerp-pos` —** | | | | | |
 | P01 | Temelji prodaje: kategorije, porezne stope, načini plaćanja, prodajni podaci artikla, barkodovi (10 pravila) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -199,3 +200,4 @@ Arhitektovi defaulti koji vrijede dok vlasnik ne kaže drugačije (detalji u ADR
 - Spec 008 (ADR-0015): zastarjela inventura se odbija; inventura je djelomična; artikl jednom po inventuri;
   ništa se ne zamrzava dok je inventura otvorena; proknjižena inventura se može stornirati.
 - 2026-11-20 — vlasnik: prijava u tenant korisničkim imenom i lozinkom. Spec U01 izgrađen (korisnici, `POST /login/{tenant}`, `POST /logout`, 2 pravila `users.*`); xerp-web: prijava, bez "Novi tenant" kad je netko prijavljen, radni nalozi i sastavnice. Server: laptop preko Tailscalea.
+- 2026-11-20 — vlasnik: "napravi da postoje računi". Spec I01 izgrađen (računi RN-, PDV rekapitulacija, plaćanja, storno računom, opcionalno skidanje zalihe, podaci o tvrtki; 4 pravila `invoice.*`, 11 MCP alata). Testni podaci Vulca obrisani. Fiskalizacija nije napravljena.

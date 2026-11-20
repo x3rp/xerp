@@ -3,6 +3,7 @@ using Xerp.Application.Articles;
 using Xerp.Application.ArticleUnits;
 using Xerp.Application.Common;
 using Xerp.Application.Identity;
+using Xerp.Application.Invoicing;
 using Xerp.Application.Orders;
 using Xerp.Application.Partners;
 using Xerp.Application.Pos;
@@ -1207,6 +1208,9 @@ public static class ToolCatalog
 
         // ---- production: bills of materials and work orders (spec W01, section 5)
         .. ProductionTools,
+
+        // ---- invoices and the company profile (spec I01, section 5)
+        .. InvoiceTools,
     ];
 
     private const string ProductionRuleHint =
@@ -1225,6 +1229,129 @@ public static class ToolCatalog
             ("plannedQuantity", Number("How much of it is planned, in its base unit; greater than 0.")))),
         ("reference", NullableText("Optional reference, at most 100 characters on one line.")),
         ("note", NullableText("Optional note, at most 2000 characters.")),
+    ];
+
+    private const string InvoiceRuleHint =
+        " This company's rules decide what an issue requires (`rule_list` with `group` = `invoice`); a refusal's `rules` names the rule that refused.";
+
+    private static (string, System.Text.Json.Nodes.JsonObject)[] InvoiceFields =>
+    [
+        ("customerId", NullableUuid("The `id` of the customer, a partner with `isCustomer` = true (see `partner_list`); null for none.")),
+        ("issueDate", Text("The invoice date, YYYY-MM-DD; default today (UTC).")),
+        ("deliveryDate", NullableText("When the goods or services were delivered, YYYY-MM-DD; optional.")),
+        ("dueDate", NullableText("When payment is due, YYYY-MM-DD, not before issueDate; optional.")),
+        ("paymentMethodId", NullableUuid("The `id` of the payment method (see `payment_method_list`); optional.")),
+        ("warehouseId", NullableUuid("The warehouse goods are issued from when the issue moves stock (rule `invoice.issueMovesStock`); null = the default warehouse.")),
+        ("reference", NullableText("Optional reference, e.g. the customer's order number, at most 100 characters.")),
+        ("note", NullableText("Optional note printed on the invoice, at most 2000 characters.")),
+        ("lines", ArrayOf("The invoice lines, 1 to 200.", 1, 200, ["articleId", "quantity"],
+            ("articleId", Uuid("The `id` of the article sold (stock article or service).")),
+            ("quantity", Number("How much, in the article's base unit; greater than 0.")),
+            ("unitPrice", Number("Price per unit WITHOUT tax, 0 or more, at most 6 decimals. Omit to use the article's sales price (which includes tax) less the line's tax.")),
+            ("discountPercent", Number("Discount in percent, 0 to 100, at most 2 decimals; default 0.")),
+            ("taxRateId", Uuid("The `id` of the tax rate (see `tax_rate_list`). Omit to use the article's tax rate when its sales data has exactly one.")),
+            ("description", NullableText("Text of the line; default the article's name.")))),
+    ];
+
+    private static XerpTool[] InvoiceTools =>
+    [
+        XerpTool.For<ListInvoicesInput, PagedResult<InvoiceSummaryDto>>("invoice_list", ToolKind.Read,
+            "Lists the tenant's invoices, newest first, with paging; each item has totals, `paymentStatus` and `lineCount`. Filters combine with AND. " + Validation,
+            Input([],
+            [
+                ("status", Text("Only invoices in this status: `draft` (editable), `issued` (numbered, final), `cancelled` (a cancelling invoice was issued for it).", "draft", "issued", "cancelled")),
+                ("paymentStatus", Text("Only issued invoices that are `unpaid`, `partial`ly paid or `paid`.", "unpaid", "partial", "paid")),
+                ("customerId", Uuid("Only invoices to the partner with this `id`.")),
+                Search("the invoice number or the reference"),
+                .. Paging,
+            ]),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().ListAsync(input, ct)),
+
+        XerpTool.For<InvoiceAddressInput, InvoiceDto>("invoice_get", ToolKind.Read,
+            "Returns one invoice with its lines, tax recapitulation (`taxes`, one per rate) and payments, by `id` or by `number` (exactly one). "
+            + "`VALIDATION_FAILED`: both or neither given. `NOT_FOUND`: no such invoice; a draft has no number.",
+            Input([],
+            [
+                ("id", Uuid("The invoice's `id`. Give either `id` or `number`.")),
+                ("number", Text("The number of an issued invoice, for example `RN-000001`.")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().FindAsync(input, ct)),
+
+        XerpTool.For<InvoiceInput, InvoiceDto>("invoice_create", ToolKind.Create,
+            "Creates an invoice as a draft. Prices are without tax; tax is computed per rate on the invoice and rounded to cents. "
+            + "A draft has no number and changes nothing: issue it with `invoice_issue`. " + Validation + " "
+            + "`REFERENCE_NOT_FOUND` / `REFERENCE_INACTIVE`: a customer, article, tax rate, payment method or warehouse is unknown or inactive (`errors` names the field). "
+            + "`PARTNER_ROLE_MISSING`: the customer is not marked `isCustomer`.",
+            Input(["lines"], InvoiceFields),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().CreateAsync(input, ct)),
+
+        XerpTool.For<ReplaceInvoiceToolInput, InvoiceDto>("invoice_update", ToolKind.Update,
+            "Replaces a draft invoice as a whole, with the same arguments as `invoice_create`. `NOT_FOUND`: no such invoice. `INVALID_STATE`: it is not a draft. " + Validation,
+            Input(["id", "lines"], [IdOf("draft invoice to replace"), .. InvoiceFields]),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().ReplaceAsync(input, ct)),
+
+        XerpTool.For<RecordIdInput, InvoiceDeleted>("invoice_delete", ToolKind.Delete,
+            "Deletes a draft invoice; returns `{ \"deleted\": true }`. `NOT_FOUND`: no such invoice. `INVALID_STATE`: it is issued (cancel it with `invoice_cancel` instead).",
+            Input(["id"], IdOf("draft invoice to delete")),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().DeleteAsync(input.Id, ct)),
+
+        XerpTool.For<RecordIdInput, InvoiceDto>("invoice_issue", ToolKind.Post,
+            "Issues a draft invoice, permanently: it gets the next number of the gapless series (`RN-…`) and can no longer be changed or deleted, only paid or cancelled. "
+            + "With rule `invoice.issueMovesStock` it also posts a stock issue of its stock articles (refusals `INSUFFICIENT_STOCK`, `STOCK_RESERVED` name `lines[i].quantity`). "
+            + "`NOT_FOUND`: no such invoice. `INVALID_STATE`: it is not a draft. `REFERENCE_INACTIVE`: the customer or an article became inactive. "
+            + "`VALIDATION_FAILED` with key `customerId` (rule `invoice.customerRequired`) or `issueDate` (dated before the latest issued invoice, rule `invoice.backdatingAllowed`)." + InvoiceRuleHint,
+            Input(["id"], IdOf("draft invoice to issue")),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().IssueAsync(input.Id, ct)),
+
+        XerpTool.For<CancelInvoiceToolInput, InvoiceDto>("invoice_cancel", ToolKind.Reverse,
+            "Cancels an issued invoice by issuing a cancelling invoice: the same lines with negated quantities, the next number, `cancellationOf` pointing at the original, which becomes `cancelled`. "
+            + "If the original's issue moved stock, that stock issue is reversed in the same step. Returns the cancelling invoice. "
+            + "`NOT_FOUND`: no such invoice. `INVALID_STATE`: it is not issued, or it is itself a cancelling invoice. " + Validation + InvoiceRuleHint,
+            Input(["id"],
+            [
+                IdOf("issued invoice to cancel"),
+                ("issueDate", Text("The date of the cancelling invoice, YYYY-MM-DD; default today; not before the original.")),
+                ("note", NullableText("Optional note, e.g. why it was cancelled.")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().CancelAsync(input, ct)),
+
+        XerpTool.For<AddInvoicePaymentToolInput, InvoiceDto>("invoice_payment_add", ToolKind.Create,
+            "Records a payment received for an issued invoice and returns the invoice with `paidAmount`, `openAmount` and `paymentStatus` updated. "
+            + "`INVALID_STATE`: the invoice is a draft, cancelled, or a cancelling invoice. `VALIDATION_FAILED` with key `amount`: more than is owed (rule `invoice.overpaymentAllowed`). " + Validation,
+            Input(["id", "amount"],
+            [
+                IdOf("issued invoice that was paid"),
+                ("amount", Number("The amount received, greater than 0, at most 2 decimals.")),
+                ("paymentDate", Text("When it was received, YYYY-MM-DD; default today.")),
+                ("paymentMethodId", NullableUuid("How it was paid (see `payment_method_list`); optional.")),
+                ("note", NullableText("Optional note, e.g. the bank statement reference.")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().AddPaymentAsync(input, ct)),
+
+        XerpTool.For<InvoicePaymentAddressInput, InvoiceDto>("invoice_payment_delete", ToolKind.Delete,
+            "Removes a payment recorded by mistake and returns the invoice. `NOT_FOUND`: no such invoice, or no such payment on it.",
+            Input(["id", "paymentId"], [IdOf("invoice"), ("paymentId", Uuid("The `id` of the payment, from the invoice's `payments`."))]),
+            (services, input, ct) => services.GetRequiredService<InvoiceOperations>().DeletePaymentAsync(input, ct)),
+
+        XerpTool.For<NoArguments, CompanyProfileDto>("company_get", ToolKind.Read,
+            "Returns the company's own data printed on its invoices: legal name, OIB (`taxId`), address, IBAN, contacts and the invoice footer. Fields are null until set.",
+            Input([]),
+            (services, _, ct) => services.GetRequiredService<CompanyOperations>().GetAsync(ct)),
+
+        XerpTool.For<CompanyProfileInput, CompanyProfileDto>("company_set", ToolKind.Update,
+            "Sets the company's own data as a whole (omitted fields become empty). `legalName` is required. " + Validation,
+            Input(["legalName"],
+            [
+                ("legalName", Text("The company's legal name, e.g. `Vulco d.o.o.`, at most 200 characters.")),
+                ("taxId", NullableText("The OIB (or another tax number), at most 20 characters.")),
+                .. AddressFields(false),
+                ("iban", NullableText("The bank account (IBAN) for payments; spaces are removed.")),
+                ("email", NullableText("Contact e-mail.")),
+                ("phone", NullableText("Contact phone.")),
+                ("website", NullableText("Web site.")),
+                ("invoiceFooter", NullableText("Text printed under every invoice, e.g. VAT status, court registration, share capital.")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<CompanyOperations>().SetAsync(input, ct)),
     ];
 
     private static XerpTool[] ProductionTools =>

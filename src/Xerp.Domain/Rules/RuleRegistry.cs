@@ -241,6 +241,40 @@ public static class RuleRegistry
         + "Passwords that are already set are not judged again.",
         Default: false);
 
+    public static readonly RuleDefinition InvoiceCustomerRequired = new(
+        "invoice.customerRequired",
+        "An invoice must name a customer",
+        "Judges issuing an invoice (invoice_issue); drafts may be saved without one. "
+        + "When true, issuing an invoice without a customer is refused with VALIDATION_FAILED, key customerId. "
+        + "When false, an invoice may be issued to no one in particular (a retail sale). "
+        + "Invoices already issued are not judged again.",
+        Default: true);
+
+    public static readonly RuleDefinition InvoiceBackdatingAllowed = new(
+        "invoice.backdatingAllowed",
+        "An invoice may be dated before the last issued invoice",
+        "Judges issuing an invoice (invoice_issue) and cancelling one (invoice_cancel). "
+        + "When false, an invoice whose issue date is before the issue date of the latest issued invoice is refused with VALIDATION_FAILED, key issueDate: numbers and dates then run in the same order, as Croatian law expects. "
+        + "When true, any issue date is accepted.",
+        Default: false);
+
+    public static readonly RuleDefinition InvoiceIssueMovesStock = new(
+        "invoice.issueMovesStock",
+        "Issuing an invoice issues its goods from stock",
+        "Judges issuing and cancelling an invoice (invoice_issue, invoice_cancel). "
+        + "When true, issuing posts a stock issue of the invoice's stock articles from its warehouse (or the default warehouse), with the invoice number as reference, judged by the stock rules like any posting (INSUFFICIENT_STOCK, STOCK_RESERVED); cancelling reverses it. "
+        + "When false, invoices never move stock: goods leave through issues and deliveries. "
+        + "Invoices already issued keep what they did.",
+        Default: false);
+
+    public static readonly RuleDefinition InvoiceOverpaymentAllowed = new(
+        "invoice.overpaymentAllowed",
+        "Payments may exceed what an invoice is owed",
+        "Judges recording a payment on an invoice (invoice_payment_add). "
+        + "When false, a payment that would take the paid amount above the invoice total is refused with VALIDATION_FAILED, key amount. "
+        + "When true, any amount is recorded and the invoice is simply paid.",
+        Default: false);
+
     /// <summary>The four masters, each with its rules.</summary>
     public static IReadOnlyList<MasterRuleSet> Masters { get; } = [Uom, Article, Partner, Warehouse];
 
@@ -257,6 +291,7 @@ public static class RuleRegistry
             PosSeveralOperatorsPerDeviceAllowed, PosOperatorOnSeveralDevicesAllowed,
             ProductionComponentsMayDifferFromBom, ProductionConsumptionMayDifferFromPlan, ProductionProducedQuantityMayDifferFromPlan,
             UsersLockAfterFailedLogins, UsersShortPasswordsAllowed,
+            InvoiceCustomerRequired, InvoiceBackdatingAllowed, InvoiceIssueMovesStock, InvoiceOverpaymentAllowed,
         ])
         .OrderBy(r => r.Key, StringComparer.Ordinal)
         .ToList();
