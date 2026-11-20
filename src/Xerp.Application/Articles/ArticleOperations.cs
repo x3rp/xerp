@@ -194,7 +194,9 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
         // Spec W01: a bill of materials (as product or component) and a work order of any status count too.
         || await db.BomComponents.AnyAsync(c => c.ArticleId == articleId || c.ComponentId == articleId, cancellationToken)
         || await db.WorkOrders.AnyAsync(w => w.ArticleId == articleId, cancellationToken)
-        || await db.WorkOrderLines.AnyAsync(l => l.ArticleId == articleId, cancellationToken);
+        || await db.WorkOrderLines.AnyAsync(l => l.ArticleId == articleId, cancellationToken)
+        // Spec I01: an invoice line of any status.
+        || await db.InvoiceLines.AnyAsync(l => l.ArticleId == articleId, cancellationToken);
 
     /// <summary>
     /// Deletes an article no stock document uses, together with its conversions (spec 007, R11): they are the

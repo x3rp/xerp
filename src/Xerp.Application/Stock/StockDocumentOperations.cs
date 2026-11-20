@@ -387,6 +387,9 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
             if (await db.WorkOrders.Where(w => w.IssueDocumentId == id || w.ReceiptDocumentId == id).Select(w => w.Number).FirstOrDefaultAsync(ct) is { } workOrderNumber)
                 return AppError.InvalidState(
                     $"The stock document was posted by the completion of work order {workOrderNumber} and is reversed only with it: use work_order_reverse (POST /work-orders/{{id}}/reverse).");
+            if (await db.Invoices.Where(v => v.StockDocumentId == id).Select(v => v.Number).FirstOrDefaultAsync(ct) is { } invoiceNumber)
+                return AppError.InvalidState(
+                    $"The stock document was posted by the issue of invoice {invoiceNumber} and is reversed only with it: cancel the invoice (POST /invoices/{{id}}/cancel).");
             var reversal = await ReverseWithinLockAsync(original, values, tenantRules, ct);
             if (!reversal.IsSuccess)
                 return reversal.Error;

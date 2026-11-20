@@ -6,6 +6,7 @@ using Xerp.Application.Ports;
 using Xerp.Domain.Catalog;
 using Xerp.Domain.Common;
 using Xerp.Domain.Inventory;
+using Xerp.Domain.Invoicing;
 using Xerp.Domain.Orders;
 using Xerp.Domain.Partners;
 using Xerp.Domain.Pos;
@@ -26,6 +27,10 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<CompanyProfile> CompanyProfiles => Set<CompanyProfile>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+    public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
     public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<ArticleUnit> ArticleUnits => Set<ArticleUnit>();
@@ -592,6 +597,123 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
             e.HasOne<Article>().WithMany()
                 .HasForeignKey(l => new { l.TenantId, l.ArticleId })
                 .HasPrincipalKey(a => new { a.TenantId, a.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ---- spec I01: invoices and the company profile
+        modelBuilder.Entity<CompanyProfile>(e =>
+        {
+            e.ToTable("CompanyProfiles");
+            e.Property(p => p.Id).ValueGeneratedNever();
+            e.HasIndex(p => p.TenantId).IsUnique();
+            e.Property(p => p.LegalName).HasMaxLength(NameRules.MaxLength);
+            e.Property(p => p.TaxId).HasMaxLength(CompanyProfile.TaxIdMaxLength);
+            e.Property(p => p.AddressLine1).HasMaxLength(Address.LineMaxLength);
+            e.Property(p => p.AddressLine2).HasMaxLength(Address.LineMaxLength);
+            e.Property(p => p.PostalCode).HasMaxLength(Address.PostalCodeMaxLength);
+            e.Property(p => p.City).HasMaxLength(Address.CityMaxLength);
+            e.Property(p => p.Region).HasMaxLength(Address.RegionMaxLength);
+            e.Property(p => p.CountryCode).HasMaxLength(CountryCodeRules.Length);
+            e.Property(p => p.Iban).HasMaxLength(CompanyProfile.IbanMaxLength);
+            e.Property(p => p.Email).HasMaxLength(CompanyProfile.ContactMaxLength);
+            e.Property(p => p.Phone).HasMaxLength(CompanyProfile.ContactMaxLength);
+            e.Property(p => p.Website).HasMaxLength(CompanyProfile.ContactMaxLength);
+            e.Property(p => p.InvoiceFooter).HasMaxLength(CompanyProfile.FooterMaxLength);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(p => new { p.TenantId, p.UpdatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Invoice>(e =>
+        {
+            e.ToTable("Invoices");
+            e.Property(i => i.Id).ValueGeneratedNever();
+            e.Property(i => i.Status).HasMaxLength(20).HasConversion(v => v.ToName(), v => InvoiceStatusNames.Parse(v));
+            e.Property(i => i.Number).HasMaxLength(Invoice.NumberMaxLength);
+            e.Property(i => i.Reference).HasMaxLength(Invoice.ReferenceMaxLength);
+            e.Property(i => i.Note).HasMaxLength(Invoice.NoteMaxLength);
+            foreach (var amount in new[] { nameof(Invoice.NetAmount), nameof(Invoice.TaxAmount), nameof(Invoice.TotalAmount), nameof(Invoice.PaidAmount) })
+                e.Property(amount).HasPrecision(18, InvoiceRules.AmountDecimals);
+            e.Ignore(i => i.IsCancellation);
+            e.HasIndex(i => new { i.TenantId, i.Number }).IsUnique();
+            e.HasAlternateKey(i => new { i.TenantId, i.Id });
+            e.HasMany(i => i.Lines).WithOne()
+                .HasForeignKey(l => new { l.TenantId, l.InvoiceId })
+                .HasPrincipalKey(i => new { i.TenantId, i.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.Navigation(i => i.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+            e.HasMany(i => i.Payments).WithOne()
+                .HasForeignKey(p => new { p.TenantId, p.InvoiceId })
+                .HasPrincipalKey(i => new { i.TenantId, i.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.Navigation(i => i.Payments).UsePropertyAccessMode(PropertyAccessMode.Field);
+            e.HasOne<Partner>().WithMany()
+                .HasForeignKey(i => new { i.TenantId, i.CustomerId })
+                .HasPrincipalKey(p => new { p.TenantId, p.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<PaymentMethod>().WithMany()
+                .HasForeignKey(i => new { i.TenantId, i.PaymentMethodId })
+                .HasPrincipalKey(m => new { m.TenantId, m.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Warehouse>().WithMany()
+                .HasForeignKey(i => new { i.TenantId, i.WarehouseId })
+                .HasPrincipalKey(w => new { w.TenantId, w.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StockDocument>().WithMany()
+                .HasForeignKey(i => new { i.TenantId, i.StockDocumentId })
+                .HasPrincipalKey(d => new { d.TenantId, d.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Invoice>().WithMany()
+                .HasForeignKey(i => new { i.TenantId, i.CancellationOfId })
+                .HasPrincipalKey(i => new { i.TenantId, i.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Invoice>().WithMany()
+                .HasForeignKey(i => new { i.TenantId, i.CancelledById })
+                .HasPrincipalKey(i => new { i.TenantId, i.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            foreach (var actor in new[] { nameof(Invoice.CreatedBy), nameof(Invoice.UpdatedBy), nameof(Invoice.IssuedBy) })
+                e.HasOne<ApiKey>().WithMany()
+                    .HasForeignKey(nameof(Invoice.TenantId), actor)
+                    .HasPrincipalKey(nameof(ApiKey.TenantId), nameof(ApiKey.Id))
+                    .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InvoiceLine>(e =>
+        {
+            e.ToTable("InvoiceLines");
+            e.Property(l => l.Id).ValueGeneratedNever();
+            e.Property(l => l.Description).HasMaxLength(InvoiceRules.DescriptionMaxLength);
+            e.Property(l => l.Quantity).HasPrecision(18, QuantityRules.DecimalPlaces);
+            e.Property(l => l.UnitPrice).HasPrecision(18, PriceRules.DecimalPlaces);
+            e.Property(l => l.DiscountPercent).HasPrecision(5, InvoiceRules.DiscountDecimals);
+            e.Property(l => l.TaxPercent).HasPrecision(7, SalesDataRules.RateDecimalPlaces);
+            e.Property(l => l.NetAmount).HasPrecision(18, InvoiceRules.AmountDecimals);
+            e.Ignore(l => l.Entry);
+            e.HasIndex(l => new { l.TenantId, l.InvoiceId, l.LineNo }).IsUnique();
+            e.HasOne<Article>().WithMany()
+                .HasForeignKey(l => new { l.TenantId, l.ArticleId })
+                .HasPrincipalKey(a => new { a.TenantId, a.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<TaxRate>().WithMany()
+                .HasForeignKey(l => new { l.TenantId, l.TaxRateId })
+                .HasPrincipalKey(t => new { t.TenantId, t.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InvoicePayment>(e =>
+        {
+            e.ToTable("InvoicePayments");
+            e.Property(p => p.Id).ValueGeneratedNever();
+            e.Property(p => p.Amount).HasPrecision(18, InvoiceRules.AmountDecimals);
+            e.Property(p => p.Note).HasMaxLength(Invoice.NoteMaxLength);
+            e.HasOne<PaymentMethod>().WithMany()
+                .HasForeignKey(p => new { p.TenantId, p.PaymentMethodId })
+                .HasPrincipalKey(m => new { m.TenantId, m.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(p => new { p.TenantId, p.CreatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

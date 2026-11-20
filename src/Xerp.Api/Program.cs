@@ -7,6 +7,7 @@ using Xerp.Application.ApiKeys;
 using Xerp.Application.Articles;
 using Xerp.Application.ArticleUnits;
 using Xerp.Application.Identity;
+using Xerp.Application.Invoicing;
 using Xerp.Application.Orders;
 using Xerp.Application.Partners;
 using Xerp.Application.Ports;
@@ -60,6 +61,8 @@ builder.Services.AddScoped<BomOperations>();
 builder.Services.AddScoped<WorkOrderOperations>();
 builder.Services.AddScoped<UserOperations>();
 builder.Services.AddScoped<LoginOperations>();
+builder.Services.AddScoped<InvoiceOperations>();
+builder.Services.AddScoped<CompanyOperations>();
 builder.Services.AddXerpMcpServer();
 
 var app = builder.Build();
@@ -112,6 +115,7 @@ v1.MapSalesMasterDataEndpoints();
 v1.MapPosEndpoints();
 v1.MapProductionEndpoints();
 v1.MapUserEndpoints();
+v1.MapInvoiceEndpoints();
 
 // One operation = one HTTP endpoint + one MCP tool; both call the same Application operations.
 app.MapMcp(ApiV1Middleware.McpPath);
