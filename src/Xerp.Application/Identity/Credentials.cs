@@ -21,12 +21,12 @@ public sealed record TenantCredential(ApiKeyRecord Key) : Credential;
 /// Turns a bearer token into a credential (spec 001, S2-S3). Shared by every transport (HTTP now, MCP later),
 /// so they cannot disagree about who is authenticated.
 /// </summary>
-public sealed class CredentialResolver(AdminKeySetting adminKey, IApiKeyHasher hasher, IApiKeyLookup lookup)
+public sealed class CredentialResolver(AdminKeySetting adminKey, IApiKeyHasher hasher, IApiKeyLookup lookup, IClock clock)
 {
     // Longer than any key this system issues or accepts as admin key in practice; avoids hashing junk.
     private const int MaxTokenLength = 512;
 
-    /// <returns>Null when the token is missing, unknown, or belongs to a disabled key or tenant.</returns>
+    /// <returns>Null when the token is missing, unknown, expired (spec U01), or belongs to a disabled key or tenant.</returns>
     public async Task<Credential?> ResolveAsync(string? token, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(token) || token.Length > MaxTokenLength)
@@ -35,7 +35,7 @@ public sealed class CredentialResolver(AdminKeySetting adminKey, IApiKeyHasher h
             return new AdminCredential();
 
         var key = await lookup.FindByHashAsync(hasher.Hash(token), cancellationToken);
-        if (key is null || !key.IsActive || !key.TenantIsActive)
+        if (key is null || !key.IsActive || !key.TenantIsActive || key.ExpiresAt is { } expires && expires <= clock.UtcNow)
             return null;
         return new TenantCredential(key);
     }

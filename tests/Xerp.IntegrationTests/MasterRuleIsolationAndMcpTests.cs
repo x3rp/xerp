@@ -52,7 +52,7 @@ public class MasterRuleIsolationAndMcpTests(XerpFixture app)
         await MasterRules.AssertDefaultBehaviourAsync(y.Client, named: true);
 
         var ofY = await Rules.ListAsync(y.Client, "?limit=500");
-        Assert.Equal(51, ofY.Total());
+        Assert.Equal(53, ofY.Total());
         Assert.Equal(Rules.All, ofY.RuleKeys());
         foreach (var rule in ofY.Items())
         {

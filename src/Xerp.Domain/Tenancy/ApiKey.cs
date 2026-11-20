@@ -107,6 +107,14 @@ public sealed class ApiKey : ITenantOwned
     public DateTime? RevokedAt { get; private set; }
     public Guid? RevokedBy { get; private set; }
 
+    /// <summary>Spec U01: the user whose sign-in issued this key (a session); null for every other key.</summary>
+    public Guid? UserId { get; private set; }
+
+    /// <summary>Spec U01: after this moment the key no longer authenticates; null = never expires.</summary>
+    public DateTime? ExpiresAt { get; private set; }
+
+    public bool IsSession => UserId is not null;
+
     public static ApiKey Create(Guid tenantId, string name, ActorType actorType, string keyHash, DateTime now, Guid? createdBy = null,
         ApiKeyScope scope = ApiKeyScope.Full) =>
         new()
@@ -121,6 +129,17 @@ public sealed class ApiKey : ITenantOwned
             CreatedAt = now,
             CreatedBy = createdBy,
         };
+
+    /// <summary>Spec U01: the key a sign-in of <paramref name="user"/> issues; full scope, human, valid for <see cref="UserRules.SessionLifetime"/>.</summary>
+    public static ApiKey CreateSession(Guid tenantId, User user, string keyHash, DateTime now)
+    {
+        var key = Create(tenantId, $"login: {user.Username}", ActorType.Human, keyHash, now);
+        key.UserId = user.Id;
+        key.ExpiresAt = now + UserRules.SessionLifetime;
+        return key;
+    }
+
+    public bool IsExpired(DateTime now) => ExpiresAt is { } expires && expires <= now;
 
     /// <summary>
     /// Revocation is permanent (spec 003, R5). Revoking an inactive key changes nothing, so the first

@@ -36,6 +36,8 @@ public static class ErrorCodes
     public const string OperatorRightMissing = "OPERATOR_RIGHT_MISSING";
     public const string PayloadTooLarge = "PAYLOAD_TOO_LARGE";
     public const string RateLimited = "RATE_LIMITED";
+    public const string LoginFailed = "LOGIN_FAILED";
+    public const string UsernameTaken = "USERNAME_TAKEN";
     public const string InternalError = "INTERNAL_ERROR";
 }
 
@@ -76,6 +78,11 @@ public sealed record AppError(
     /// <summary>The client sent more requests than the deployment allows in the current window.</summary>
     public static AppError RateLimited(int permitsPerMinute) =>
         new(ErrorCodes.RateLimited, $"Too many requests: the limit is {permitsPerMinute} per minute per client address. Retry after the Retry-After header.");
+
+    /// <summary>Spec U01: one answer for every cause - unknown tenant or user, wrong password, inactive or locked user.</summary>
+    public static AppError LoginFailed() =>
+        new(ErrorCodes.LoginFailed, "The company, username and password were not accepted.",
+            new Dictionary<string, string[]> { ["password"] = ["Check the company code, username and password and try again. After repeated failures the user may be locked for 15 minutes."] });
 
     public static AppError Internal() => new(ErrorCodes.InternalError, "An unexpected error occurred.");
 

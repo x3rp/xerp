@@ -94,7 +94,7 @@ public static class HttpAssert
     /// <summary>S6: no stack traces, SQL or connection details in an error body.</summary>
     internal static void AssertLeaksNothing(string body)
     {
-        foreach (var marker in new[] { "   at ", "Exception", "Npgsql", "SELECT ", "INSERT ", "Host=", "Password", "duplicate key", "FK_Articles", "FK_UnitsOfMeasure", "IX_Articles", "IX_UnitsOfMeasure", "violates foreign key" })
+        foreach (var marker in new[] { "   at ", "Exception", "Npgsql", "SELECT ", "INSERT ", "Host=", "Password=", "duplicate key", "FK_Articles", "FK_UnitsOfMeasure", "IX_Articles", "IX_UnitsOfMeasure", "violates foreign key" })
             Assert.DoesNotContain(marker, body, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -24,7 +24,10 @@ public static class DependencyInjection
         services.AddSingleton<ApiKeyCrypto>();
         services.AddSingleton<IApiKeyGenerator>(provider => provider.GetRequiredService<ApiKeyCrypto>());
         services.AddSingleton<IApiKeyHasher>(provider => provider.GetRequiredService<ApiKeyCrypto>());
-        services.AddSingleton<IPinHasher, PinHasher>();
+        services.AddSingleton<PinHasher>();
+        services.AddSingleton<IPinHasher>(provider => provider.GetRequiredService<PinHasher>());
+        services.AddSingleton<IPasswordHasher>(provider => provider.GetRequiredService<PinHasher>());
+        services.AddScoped<ITenantDirectory, TenantDirectory>();
         services.AddSingleton<IClock, SystemClock>();
         return services;
     }

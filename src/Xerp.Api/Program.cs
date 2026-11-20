@@ -17,6 +17,7 @@ using Xerp.Application.Sales;
 using Xerp.Application.Stock;
 using Xerp.Application.Tenants;
 using Xerp.Application.UnitsOfMeasure;
+using Xerp.Application.Users;
 using Xerp.Application.Warehouses;
 using Xerp.Infrastructure;
 using Xerp.Infrastructure.Persistence;
@@ -57,6 +58,8 @@ builder.Services.AddScoped<PosSignIn>();
 builder.Services.AddScoped<PosSessionOperations>();
 builder.Services.AddScoped<BomOperations>();
 builder.Services.AddScoped<WorkOrderOperations>();
+builder.Services.AddScoped<UserOperations>();
+builder.Services.AddScoped<LoginOperations>();
 builder.Services.AddXerpMcpServer();
 
 var app = builder.Build();
@@ -108,6 +111,7 @@ v1.MapRuleEndpoints();
 v1.MapSalesMasterDataEndpoints();
 v1.MapPosEndpoints();
 v1.MapProductionEndpoints();
+v1.MapUserEndpoints();
 
 // One operation = one HTTP endpoint + one MCP tool; both call the same Application operations.
 app.MapMcp(ApiV1Middleware.McpPath);

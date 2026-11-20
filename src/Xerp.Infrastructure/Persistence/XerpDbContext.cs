@@ -25,6 +25,7 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<User> Users => Set<User>();
     public DbSet<UnitOfMeasure> UnitsOfMeasure => Set<UnitOfMeasure>();
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<ArticleUnit> ArticleUnits => Set<ArticleUnit>();
@@ -87,6 +88,29 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne<ApiKey>().WithMany()
                 .HasForeignKey(k => new { k.TenantId, k.RevokedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            // Spec U01: a session key belongs to a user of the same tenant.
+            e.HasOne<User>().WithMany()
+                .HasForeignKey(k => new { k.TenantId, k.UserId })
+                .HasPrincipalKey(u => new { u.TenantId, u.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<User>(e =>
+        {
+            e.ToTable("Users");
+            e.Property(u => u.Id).ValueGeneratedNever();
+            e.Property(u => u.Username).HasMaxLength(UserRules.UsernameMaxLength);
+            e.Property(u => u.Name).HasMaxLength(NameRules.MaxLength);
+            e.Property(u => u.PasswordHash).HasMaxLength(200);
+            e.HasIndex(u => new { u.TenantId, u.Username }).IsUnique();
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(u => new { u.TenantId, u.CreatedBy })
+                .HasPrincipalKey(k => new { k.TenantId, k.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApiKey>().WithMany()
+                .HasForeignKey(u => new { u.TenantId, u.UpdatedBy })
                 .HasPrincipalKey(k => new { k.TenantId, k.Id })
                 .OnDelete(DeleteBehavior.Restrict);
         });
