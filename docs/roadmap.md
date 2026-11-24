@@ -168,6 +168,10 @@ database. Missing, spec **S01 SaaS platform** (after 023):
   and health checks, rate limits at the proxy (today per process), `compose`/k8s example;
 - plans, limits and billing: later, owner decision.
 
+Owner, 2026-11-24: we ship the web client (`xerp-web`); a company may use it or build its own frontend. So the
+API is a **public product contract**: 022 (OpenAPI, with a drift test) moves into S01, CORS is configurable per
+company (its own origins), and breaking changes to `/api/v1` need a new version, never a silent change.
+
 ### POS module (owner, 2026-10-13)
 
 A hospitality POS is built on the ERP before rows 14 and 15 continue: `docs/pos/overview.md` (specs P01–P12,
