@@ -36,7 +36,16 @@ public sealed class CompanyProfile : ITenantOwned
     public DateTime UpdatedAt { get; private set; }
     public Guid UpdatedBy { get; private set; }
 
+    /// <summary>Spec A01: when the business rules were last reviewed (<c>rule_set_many</c> or <c>setup_mark_rules_reviewed</c>); null until then.</summary>
+    public DateTime? RulesReviewedAt { get; private set; }
+
     public static CompanyProfile Create(DateTime now, Guid actorKeyId) => new() { Id = Guid.CreateVersion7(), UpdatedAt = now, UpdatedBy = actorKeyId };
+
+    /// <summary>A profile that exists only to hold <see cref="RulesReviewedAt"/>: the legal name is the tenant's, everything else empty.</summary>
+    public static CompanyProfile CreateForReview(string tenantName, DateTime now, Guid actorKeyId) =>
+        new() { Id = Guid.CreateVersion7(), LegalName = tenantName, UpdatedAt = now, UpdatedBy = actorKeyId };
+
+    public void MarkRulesReviewed(DateTime now) => RulesReviewedAt = now;
 
     public void Set(
         string legalName, string? taxId, Address address, string? iban, string? email, string? phone, string? website, string? invoiceFooter,

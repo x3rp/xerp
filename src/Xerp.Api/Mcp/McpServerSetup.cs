@@ -22,14 +22,23 @@ public static class McpServerSetup
 
     /// <summary>Static text: the same for every tenant (spec 003, T6).</summary>
     public const string Instructions =
-        "Xerp is an ERP. All data read or written through these tools belongs to the tenant of the API key that "
-        + "authenticates the connection; there is no way to address another tenant. Call `whoami` to see the tenant "
-        + "and the actor your calls are attributed to. Records are referenced by their `id` (a UUID); a `code` is a "
-        + "human-readable label used for lookup (`*_get` with `code`) and can change. Field names, rules and results "
-        + "are identical to the HTTP API. A failed call returns a tool error whose text is JSON "
-        + "`{ \"code\", \"detail\", \"errors\"?, \"rules\"? }`: branch on `code` (stable), read `detail` for an explanation, and "
-        + "use the keys of `errors` to see which arguments to correct. When `rules` is present, a business rule this company can "
-        + "switch refused the call: it names the rule's `key` and the `value` it has (see `rule_list`); when it is absent, no switch lifts the refusal.";
+        "Xerp is an ERP. Everything you read or write belongs to the company (tenant) of the API key that authenticates this connection; "
+        + "there is no way to address another company. `whoami` shows the company and the actor your calls are attributed to.\n"
+        + "\n"
+        + "Start with three tools:\n"
+        + "- `setup_status`: what this company still needs (company data, warehouses, tax rates, articles, partners, rules...), each open item with the tool to call.\n"
+        + "- `guide`: playbooks for tasks, with the tools in order and the usual errors. Call it without a topic for the list; read `getting-started` first.\n"
+        + "- `report_list`: the report catalogue (arrives with spec RP01; until then see the `reports` playbook).\n"
+        + "\n"
+        + "Workflow: setup -> masters (articles, partners) -> purchasing -> stock -> sales -> invoicing -> payments -> reports. "
+        + "Find a record by a name, code, number or barcode with `search`; use the `id` it returns. Records are referenced by `id` (a UUID); a `code` is a label for lookup and can change.\n"
+        + "\n"
+        + "Business rules are the company's policy: yes/no switches with a shipped default (`rule_group_list`, `rule_list`, `rule_profile_list`). "
+        + "Never change a rule unless the user asked for the policy to change, and never to get one refused call through; show the difference with `rule_preview` first and apply with `rule_set_many`.\n"
+        + "\n"
+        + "A failed call returns a tool error whose text is JSON `{ \"code\", \"detail\", \"errors\"?, \"rules\"? }`: branch on `code` (stable), read `detail`, and use the keys of `errors` to see which arguments to correct. "
+        + "When `rules` is present, a business rule this company can switch refused the call: it names the rule's `key` and the `value` it has; when it is absent, no switch lifts the refusal. "
+        + "Field names, rules and results are identical to the HTTP API.";
 
     private static readonly Dictionary<string, XerpTool> Tools = ToolCatalog.All.ToDictionary(t => t.Name, StringComparer.Ordinal);
 

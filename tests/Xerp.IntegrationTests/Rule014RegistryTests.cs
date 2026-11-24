@@ -66,7 +66,7 @@ public class Rule014RegistryTests(XerpFixture app)
     }
 
     [Fact]
-    public async Task AC13_The_tool_list_has_exactly_123_tools_and_no_tool_of_this_spec_is_added()
+    public async Task AC13_The_tool_list_has_exactly_132_tools_and_no_tool_of_spec_014_is_added()
     {
         var tenant = await app.NewTenantAsync();
         var key = await Keys.CreateAsync(app, tenant.Client, "claude-014", "agent");
@@ -74,7 +74,7 @@ public class Rule014RegistryTests(XerpFixture app)
 
         var tools = await mcp.Client.ListToolsAsync();
 
-        Assert.Equal(123, tools.Count);
+        Assert.Equal(AgentApi.ToolCount, tools.Count); // 123 + the 9 of spec A01
         Assert.Equal(tools.Count, tools.Select(t => t.Name).Distinct().Count());
     }
 }

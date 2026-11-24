@@ -3,4 +3,8 @@
     <ProjectReference Include="../Xerp.Domain/Xerp.Domain.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Spec A01: the playbooks of the guide tool. -->
+    <EmbeddedResource Include="Guide/*.md" />
+  </ItemGroup>
 </Project>

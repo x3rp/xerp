@@ -111,7 +111,7 @@ public class SalesRuleIsolationAndMcpTests(XerpFixture app)
         var names = (await s.Mcp.Client.ListToolsAsync()).Select(t => t.ProtocolTool.Name).ToArray();
 
         // The literal list of the tools is in McpToolListTests.
-        Assert.Equal(123, names.Distinct().Count()); // 84 of P01 and the 16 of P02 (P02/AC-01, item 2)
+        Assert.Equal(132, names.Distinct().Count()); // 123 + the 9 of spec A01
         McpAssert.JsonEqual(await Categories.ListAsync(s.Http, ""), await s.Mcp.OkAsync("article_category_list", new { }));
         McpAssert.JsonEqual(await Tax.GetAsync(s.Http, vat.Id()), await s.Mcp.OkAsync("tax_rate_get", new { code = "vat25" }));
         McpAssert.JsonEqual(await Pay.ListAsync(s.Http, "?kind=card"), await s.Mcp.OkAsync("payment_method_list", new { kind = "card" }));

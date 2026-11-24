@@ -2,7 +2,11 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Xerp.Application.Common;
 using Xerp.Application.Ports;
+using Xerp.Domain.Inventory;
+using Xerp.Domain.Orders;
+using Xerp.Domain.Common;
 using Xerp.Domain.Rules;
+using Xerp.Domain.Tenancy;
 
 namespace Xerp.Application.Rules;
 
@@ -19,7 +23,7 @@ namespace Xerp.Application.Rules;
 /// nothing else (R15), and applies to whatever starts after it (R13). Reading takes no lock.
 /// </para>
 /// </summary>
-public sealed class RuleOperations(IXerpDb db, ITenantContext context, IClock clock)
+public sealed class RuleOperations(IXerpDb db, ITenantContext context, ICurrentTenantReader currentTenant, IClock clock)
 {
     public const string SourceDefault = "default";
     public const string SourceTenant = "tenant";
@@ -150,9 +154,170 @@ public sealed class RuleOperations(IXerpDb db, ITenantContext context, IClock cl
             .Take(limit)
             .ToListAsync(cancellationToken);
         var items = page
-            .Select(c => new RuleChangeDto(c.Id, c.Key, c.Action.ToName(), c.OldValue, c.NewValue, c.ChangedAt, c.ChangedBy))
+            .Select(c => new RuleChangeDto(c.Id, c.Key, c.Action.ToName(), c.OldValue, c.NewValue, c.ChangedAt, c.ChangedBy, c.Reason))
             .ToList();
         return new PagedResult<RuleChangeDto>(items, total, limit, offset);
+    }
+
+
+    // ---- spec A01, 2.4
+
+    /// <summary>Every group of rules (the first part of the keys), described in a sentence, with how many of its rules the tenant has changed from the default.</summary>
+    public async Task<Result<ItemsResult<RuleGroupDto>>> ListGroupsAsync(CancellationToken cancellationToken = default)
+    {
+        var rules = await RulesAsync(RuleRegistry.All, cancellationToken);
+        var groups = rules.GroupBy(r => r.Group, StringComparer.Ordinal)
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new RuleGroupDto(g.Key, RuleGroups.Describe(g.Key), g.Count(), g.Count(r => r.Value != r.Default)))
+            .ToList();
+        return new ItemsResult<RuleGroupDto>(groups);
+    }
+
+    /// <summary>
+    /// Several rules in one call, all or none. Every item is checked before anything is written: an unknown key, a value that
+    /// is not the JSON boolean true or false, a key twice - each is reported under <c>changes[i].key</c> / <c>changes[i].value</c>.
+    /// A change writes one history row (action <c>set</c>, as <see cref="SetAsync(string?, SetRuleInput, CancellationToken)"/>) with the common <c>reason</c>; an item that leaves the rule's value as it is writes nothing. The company's <c>rulesReviewedAt</c> is set.
+    /// Answers the rules that changed.
+    /// </summary>
+    public async Task<Result<ItemsResult<RuleDto>>> SetManyAsync(SetManyRulesInput input, CancellationToken cancellationToken = default)
+    {
+        var errors = new ValidationErrors();
+        var changes = Changes(errors, input.Changes);
+        string? reason = null;
+        if (!NoteRules.TryNormalize(input.Reason, RuleChange.ReasonMaxLength, out reason))
+            errors.Add("reason", $"reason must be at most {RuleChange.ReasonMaxLength} characters.");
+        if (errors.Any)
+            return errors.ToError();
+        var actor = ActorKeyId();
+        var tenant = await currentTenant.ReadAsync(cancellationToken);
+        if (tenant is null)
+            return AppError.Unauthenticated();
+
+        return await db.SerializedPerTenantAsync<Result<ItemsResult<RuleDto>>>(async ct =>
+        {
+            var now = clock.UtcNow;
+            var keys = changes.Select(c => c.Rule.Key).ToList();
+            var stored = await db.RuleValues.Where(v => keys.Contains(v.Key)).ToDictionaryAsync(v => v.Key, ct);
+            var changed = new List<RuleDefinition>();
+            foreach (var (rule, value) in changes)
+            {
+                stored.TryGetValue(rule.Key, out var own);
+                // As rule_set: a value the tenant already has changes nothing; a value that differs is the tenant's own (action set),
+                // also when it is the default's. Only a rule the tenant never set, given the value it already has, stays unset -
+                // so that applying a profile (every key of "defaults") does not turn every rule into the tenant's own.
+                if (own is null ? value == rule.Default : own.Value == value)
+                    continue;
+                db.RuleChanges.Add(RuleChange.Record(rule, RuleChangeAction.Set, oldValue: own?.Value ?? rule.Default, newValue: value, now, actor, reason));
+                if (own is null)
+                    db.RuleValues.Add(RuleValue.Set(rule, value, now, actor));
+                else
+                    own.Change(value, now, actor);
+                changed.Add(rule);
+            }
+            var profile = await db.CompanyProfiles.SingleOrDefaultAsync(ct);
+            if (profile is null)
+            {
+                profile = CompanyProfile.CreateForReview(tenant.Name, now, actor);
+                db.CompanyProfiles.Add(profile);
+            }
+            profile.MarkRulesReviewed(now);
+            await db.SaveChangesAsync(ct);
+            return new ItemsResult<RuleDto>(await RulesAsync(changed, ct));
+        }, cancellationToken);
+    }
+
+    /// <summary>What the changes would do, without doing it: the rule, old and new value, what it judges, and the drafts it would refuse at their next save or posting where that is cheap to count.</summary>
+    public async Task<Result<ItemsResult<RulePreviewDto>>> PreviewAsync(RulePreviewInput input, CancellationToken cancellationToken = default)
+    {
+        var errors = new ValidationErrors();
+        var changes = Changes(errors, input.Changes);
+        if (errors.Any)
+            return errors.ToError();
+
+        var current = (await RulesAsync(changes.Select(c => c.Rule).ToList(), cancellationToken)).ToDictionary(r => r.Key);
+        var items = new List<RulePreviewDto>();
+        foreach (var (rule, value) in changes)
+        {
+            var old = current[rule.Key].Value;
+            items.Add(new RulePreviewDto(rule.Key, rule.Name, old, value, Judges(rule), await AffectedDraftsAsync(rule, old, value, cancellationToken)));
+        }
+        return new ItemsResult<RulePreviewDto>(items);
+    }
+
+    /// <summary>The first sentence of the description: which operations the rule judges.</summary>
+    private static string Judges(RuleDefinition rule)
+    {
+        var end = rule.Description.IndexOf(". ", StringComparison.Ordinal);
+        return end < 0 ? rule.Description : rule.Description[..(end + 1)];
+    }
+
+    /// <summary>
+    /// Drafts (stock documents and orders) that the new value would refuse at their next save or posting - only for the rules
+    /// where a draft can be counted without running the checks: reference, the two dates, the partner of a receipt and an issue.
+    /// A change that does not restrict (or changes nothing) affects none; every other rule is null.
+    /// </summary>
+    private async Task<int?> AffectedDraftsAsync(RuleDefinition rule, bool oldValue, bool newValue, CancellationToken ct)
+    {
+        var counted = rule.Key is "document.referenceRequired" or "document.pastDateAllowed" or "document.futureDateAllowed"
+            or "stock.receiptPartnerRequired" or "stock.issuePartnerRequired";
+        if (!counted)
+            return null;
+        // "required" restricts when it becomes true; "allowed" restricts when it becomes false.
+        var restricts = rule.Key.EndsWith("Required", StringComparison.Ordinal) ? newValue && !oldValue : !newValue && oldValue;
+        if (!restricts)
+            return 0;
+
+        var now = clock.UtcNow;
+        var drafts = db.StockDocuments.AsNoTracking().Where(d => d.Status == StockDocumentStatus.Draft);
+        var purchases = db.PurchaseOrders.AsNoTracking().Where(o => o.Status == OrderStatus.Draft);
+        var sales = db.SalesOrders.AsNoTracking().Where(o => o.Status == OrderStatus.Draft);
+        switch (rule.Key)
+        {
+            case "document.referenceRequired":
+                return await drafts.CountAsync(d => d.Reference == null || d.Reference == "", ct)
+                    + await purchases.CountAsync(o => o.Reference == null || o.Reference == "", ct)
+                    + await sales.CountAsync(o => o.Reference == null || o.Reference == "", ct);
+            case "stock.receiptPartnerRequired":
+                return await drafts.CountAsync(d => d.Type == StockDocumentType.Receipt && d.PartnerId == null && d.PurchaseOrderId == null, ct);
+            case "stock.issuePartnerRequired":
+                return await drafts.CountAsync(d => d.Type == StockDocumentType.Issue && d.PartnerId == null && d.SalesOrderId == null, ct);
+        }
+        // The two date rules: the dates that DocumentDateRules would judge before / after today.
+        var past = DocumentDateRules.Earliest(now);
+        var future = DocumentDateRules.Latest(now);
+        return rule.Key == "document.pastDateAllowed"
+            ? await drafts.CountAsync(d => d.DocumentDate < past, ct) + await purchases.CountAsync(o => o.OrderDate < past, ct) + await sales.CountAsync(o => o.OrderDate < past, ct)
+            : await drafts.CountAsync(d => d.DocumentDate > future, ct) + await purchases.CountAsync(o => o.OrderDate > future, ct) + await sales.CountAsync(o => o.OrderDate > future, ct);
+    }
+
+    /// <summary>The changes of a call checked as a whole: every fault is reported, keyed by the item's position.</summary>
+    private static List<(RuleDefinition Rule, bool Value)> Changes(ValidationErrors errors, IReadOnlyList<RuleChangeInput>? input)
+    {
+        var result = new List<(RuleDefinition, bool)>();
+        if (input is null || input.Count == 0)
+        {
+            errors.Add("changes", "changes must name at least one rule: [{ \"key\": \"stock.negativeStockAllowed\", \"value\": true }].");
+            return result;
+        }
+        if (input.Count > RuleRegistry.All.Count)
+            errors.Add("changes", $"changes may hold at most {RuleRegistry.All.Count} items, one per rule.");
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < input.Count; i++)
+        {
+            var (key, value) = (input[i].Key, input[i].Value);
+            var rule = RuleRegistry.Find(key);
+            if (key is null)
+                errors.Add($"changes[{i}].key", "key is required.");
+            else if (rule is null)
+                errors.Add($"changes[{i}].key", $"'{key}' is not a rule of this system; list the keys with rule_list (keys are case-sensitive).");
+            else if (!seen.Add(key))
+                errors.Add($"changes[{i}].key", $"'{key}' is named twice; give each rule once.");
+            if (value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                errors.Add($"changes[{i}].value", "value must be the JSON boolean true or false: a rule is a yes/no switch.");
+            else if (rule is not null)
+                result.Add((rule, value.GetBoolean()));
+        }
+        return result;
     }
 
     /// <summary>

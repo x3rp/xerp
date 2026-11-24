@@ -39,8 +39,8 @@ public static class Rules
     public static readonly string[] Representation =
         ["default", "description", "group", "key", "name", "source", "updatedAt", "updatedBy", "value"];
 
-    /// <summary>The properties of a change (section 4), sorted.</summary>
-    public static readonly string[] ChangeRepresentation = ["action", "changedAt", "changedBy", "id", "key", "newValue", "oldValue"];
+    /// <summary>The properties of a change (section 4), sorted; since spec A01 it also has <c>reason</c> (string or null).</summary>
+    public static readonly string[] ChangeRepresentation = ["action", "changedAt", "changedBy", "id", "key", "newValue", "oldValue", "reason"];
 
     /// <summary><c>purchase.partnerRequired</c> / <c>sales.partnerRequired</c>.</summary>
     public static string PartnerRule(OrderApi o) => o == OrderApi.Purchase ? PurchasePartner : SalesPartner;

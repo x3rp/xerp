@@ -231,9 +231,23 @@ public class McpToolListTests(XerpFixture app)
     ];
 
     // The complete list (spec 004, section 5.3; specs 005 to 012, P01 and P02, section 5): a new tool must be added here by its spec.
+    // Spec A01, section 2: the nine tools of the agent experience.
+    private static readonly Expected[] SpecA01Tools =
+    [
+        new("guide", ["topic"], [], "read"),
+        new("setup_status", [], [], "read"),
+        new("rule_group_list", [], [], "read"),
+        new("rule_set_many", ["changes", "reason"], ["changes"], "repeatable"),
+        new("rule_profile_list", [], [], "read"),
+        new("rule_profile_get", ["key"], ["key"], "read"),
+        new("rule_preview", ["changes"], ["changes"], "read"),
+        new("setup_mark_rules_reviewed", [], [], "repeatable"),
+        new("search", ["text", "types"], ["text"], "read"),
+    ];
+
     private static readonly Expected[] Tools =
         [.. Spec003Tools, .. Spec004Tools, .. Spec005Tools, .. Spec006Tools, .. Spec007Tools, .. Spec009Tools, .. Spec010Tools,
-            .. Spec011Tools, .. Spec012Tools, .. SpecP01Tools, .. SpecP02Tools, .. SpecW01Tools, .. SpecI01Tools];
+            .. Spec011Tools, .. Spec012Tools, .. SpecP01Tools, .. SpecP02Tools, .. SpecW01Tools, .. SpecI01Tools, .. SpecA01Tools];
 
     private async Task<Dictionary<string, Tool>> ListToolsAsync(string? key = null)
     {
@@ -263,7 +277,8 @@ public class McpToolListTests(XerpFixture app)
         Assert.Equal(16, SpecP02Tools.Length);
         Assert.Equal(12, SpecW01Tools.Length);
         Assert.Equal(11, SpecI01Tools.Length);
-        Assert.Equal(123, Tools.Length);
+        Assert.Equal(9, SpecA01Tools.Length);
+        Assert.Equal(132, Tools.Length); // 123 + the 9 of spec A01
         Assert.Equal(Sorted(Tools.Select(t => t.Name)), Sorted(tools.Keys));
         Assert.DoesNotContain("api_key_create", tools.Keys);
         Assert.DoesNotContain(tools.Keys, name => name.StartsWith("tenant", StringComparison.OrdinalIgnoreCase));
@@ -416,7 +431,7 @@ public class McpToolListTests(XerpFixture app)
         var tools = await ListToolsAsync();
 
         // "No new tool; tools/list still returns exactly the 37 tools of spec 007" — 45 since spec 009, 53 since spec 010, 57 since spec 011, 62 since spec 012, 84 since spec P01, 100 since spec P02.
-        Assert.Equal(123, Tools.Length);
+        Assert.Equal(132, Tools.Length); // 123 + the 9 of spec A01
         Assert.Equal(Sorted(Tools.Select(t => t.Name)), Sorted(tools.Keys));
         Assert.DoesNotContain(tools.Keys, name => name.Contains("count", StringComparison.OrdinalIgnoreCase));
         // The one place where a criterion asks for words in a description (AC-80).
@@ -677,7 +692,7 @@ public class McpToolListTests(XerpFixture app)
         // Section 5: create and update gain "partnerId? (uuid or null)", list gains "partnerId? (uuid)"; the tool list is unchanged.
         var tools = await ListToolsAsync();
 
-        Assert.Equal(123, tools.Count);
+        Assert.Equal(132, tools.Count); // 123 + the 9 of spec A01
         var schema = tools[toolName].InputSchema;
         Assert.True(schema.GetProperty("properties").TryGetProperty("partnerId", out var property), $"{toolName} has no partnerId property.");
         Assert.True(property.TryGetProperty("description", out var description) && !string.IsNullOrWhiteSpace(description.GetString()),
@@ -737,7 +752,7 @@ public class McpToolListTests(XerpFixture app)
     {
         var tools = await ListToolsAsync();
 
-        Assert.Equal(123, tools.Count);
+        Assert.Equal(132, tools.Count); // 123 + the 9 of spec A01
         AssertMetadata(tools, SpecP02Tools);
         // The annotations of the master tools are those of P01; the spec does not pin those of the other five.
         AssertAnnotations(tools, SpecP02Tools.Where(t => t.Kind != "-").ToArray());
@@ -763,7 +778,7 @@ public class McpToolListTests(XerpFixture app)
     {
         var tools = await ListToolsAsync();
 
-        Assert.Equal(123, tools.Count);
+        Assert.Equal(132, tools.Count); // 123 + the 9 of spec A01
         AssertMetadata(tools, SpecP01Tools);
         AssertAnnotations(tools, SpecP01Tools);
         string Description(string name) => tools[name].Description ?? "";
@@ -797,7 +812,7 @@ public class McpToolListTests(XerpFixture app)
         // The literal list of AC-12: the 57 of spec 011 and these five.
         foreach (var name in new[] { "rule_list", "rule_get", "rule_set", "rule_reset", "rule_change_list" })
             Assert.Contains(name, tools.Keys);
-        Assert.Equal(123, tools.Count);
+        Assert.Equal(132, tools.Count); // 123 + the 9 of spec A01
         AssertMetadata(tools, Spec012Tools);
         AssertAnnotations(tools, Spec012Tools);
         // "rule_set, rule_reset not read-only, idempotent, not destructive."
