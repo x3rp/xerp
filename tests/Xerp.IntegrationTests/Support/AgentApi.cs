@@ -44,7 +44,8 @@ public static class AgentApi
         "rule_preview", "setup_mark_rules_reviewed", "search",
     ];
 
-    public const int ToolCount = 132;
+    /// <summary>All tools: 123 + the 9 of A01 + the 2 of RP01 (<see cref="ReportApi.ToolNames"/>).</summary>
+    public const int ToolCount = 134;
 
     /// <summary>The topics the spec names (2.2, "at least").</summary>
     public static readonly string[] Topics =
