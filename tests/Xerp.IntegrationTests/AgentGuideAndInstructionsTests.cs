@@ -22,14 +22,14 @@ public class AgentGuideAndInstructionsTests(XerpFixture app)
     }
 
     [Fact]
-    public async Task The_tool_list_has_the_nine_new_tools_and_132_in_all()
+    public async Task The_tool_list_has_the_nine_new_tools_and_134_in_all()
     {
         await using var agent = await AgentApi.AgentAsync(app);
 
         var tools = (await agent.Mcp.Client.ListToolsAsync()).Select(t => t.ProtocolTool).ToDictionary(t => t.Name);
 
         Assert.Equal(AgentApi.ToolCount, tools.Count);
-        Assert.Equal(123 + 9, tools.Count);
+        Assert.Equal(123 + 9 + 2, tools.Count);   // + the 2 of spec RP01
         foreach (var name in AgentApi.ToolNames)
         {
             Assert.True(tools.ContainsKey(name), $"Tool '{name}' is not listed.");
