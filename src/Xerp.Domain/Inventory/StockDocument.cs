@@ -404,14 +404,12 @@ public sealed class StockDocument : ITenantOwned
     /// transaction that saves the result.
     /// </summary>
     /// <param name="entries">All ledger entries of this document, and no others.</param>
-    /// <exception cref="InvalidOperationException">The document cannot be reversed (R11).</exception>
+    /// <exception cref="InvalidOperationException">The document cannot be reversed (R11). Whether the date may precede the original is the tenant's rule stock.reversalBeforeOriginalAllowed (spec 014), judged by the caller.</exception>
     public (StockDocument Reversal, IReadOnlyList<StockLedgerEntry> Entries) Reverse(
         IReadOnlyCollection<StockLedgerEntry> entries, DateOnly documentDate, string? note, string number, DateTime now, Guid actorKeyId)
     {
         if (!CanBeReversed)
             throw new InvalidOperationException("Only a posted stock document that is not itself a reversal can be reversed.");
-        if (documentDate < DocumentDate)
-            throw new ArgumentException("A reversal cannot be dated before the document it reverses.", nameof(documentDate));
         if (!NoteRules.TryNormalize(note, NoteMaxLength, out var reversalNote))
             throw new ArgumentException("Invalid note.", nameof(note));
         if (string.IsNullOrWhiteSpace(number))

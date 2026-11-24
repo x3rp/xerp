@@ -404,7 +404,7 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
             if (await db.Invoices.Where(v => v.StockDocumentId == id).Select(v => v.Number).FirstOrDefaultAsync(ct) is { } invoiceNumber)
                 return AppError.InvalidState(
                     $"The stock document was posted by the issue of invoice {invoiceNumber} and is reversed only with it: cancel the invoice (POST /invoices/{{id}}/cancel).");
-            var reversal = await ReverseWithinLockAsync(original, values, tenantRules, ct, judgeToday: true);
+            var reversal = await ReverseWithinLockAsync(original, values, tenantRules, ct, clientCall: true);
             if (!reversal.IsSuccess)
                 return reversal.Error;
             await db.SaveChangesAsync(ct);
@@ -418,17 +418,18 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
     /// tenant's lock and saves once; on an error it saves nothing.
     /// </summary>
     internal async Task<Result<StockDocument>> ReverseWithinLockAsync(
-        StockDocument original, StockReversalValues values, TenantRules tenantRules, CancellationToken ct, bool judgeToday = false)
+        StockDocument original, StockReversalValues values, TenantRules tenantRules, CancellationToken ct, bool clientCall = false)
     {
         {
             if (!original.CanBeReversed)
                 return NotReversible(original);
             // Spec 014, R15, R17: the date stage answers once for every date rule that refuses. Only a reversal a
             // caller asks for is judged against today; one a work order or an invoice makes follows their dates.
-            if (DocumentRuleChecks.ReversalDate(values.DocumentDate, original.DocumentDate, clock.UtcNow, tenantRules, judgeToday) is { } dateError)
+            if (DocumentRuleChecks.ReversalDate(values.DocumentDate, original.DocumentDate, clock.UtcNow, tenantRules, clientCall) is { } dateError)
                 return dateError;
-            // Spec 014, R25: the tenant may require active masters to reverse.
-            if (tenantRules[RuleRegistry.StockReversalActiveMastersRequired] && await InactiveForReversalAsync(original, ct) is { } inactive)
+            // Spec 014, R25: the tenant may require active masters to reverse - a client's reversal only; the one a
+            // work order or an invoice cancellation makes is never refused by it.
+            if (clientCall && tenantRules[RuleRegistry.StockReversalActiveMastersRequired] && await InactiveForReversalAsync(original, ct) is { } inactive)
                 return inactive;
 
             // R14, R15: the reversing entries are the original's own entries, negated.

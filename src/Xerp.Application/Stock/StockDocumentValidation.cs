@@ -247,13 +247,6 @@ public static class StockDocumentValidation
         return new StockReversalValues(date, note);
     }
 
-    /// <summary>Spec 006, R12: a reversal is not dated before the document it reverses.</summary>
-    public static AppError? ReversalDate(DateOnly reversalDate, DateOnly originalDate) =>
-        reversalDate >= originalDate
-            ? null
-            : AppError.Validation("documentDate",
-                $"documentDate of a reversal must not be earlier than the date of the document it reverses, {originalDate.ToString(DateFormat, CultureInfo.InvariantCulture)}.");
-
     // R2: exactly YYYY-MM-DD and a real calendar date; any date, past or future.
     private static DateOnly Date(ValidationErrors errors, string? documentDate)
     {

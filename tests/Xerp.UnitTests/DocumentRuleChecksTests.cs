@@ -151,10 +151,10 @@ public class DocumentRuleChecksTests
     public void A_reversal_a_work_order_or_an_invoice_makes_is_not_judged_against_today_but_against_its_original()
     {
         var rules = With((RuleRegistry.DocumentPastDateAllowed, false), (RuleRegistry.DocumentFutureDateAllowed, false));
-        Assert.Null(DocumentRuleChecks.ReversalDate(Today.AddDays(-3), Today.AddDays(-3), At(12), rules, judgeToday: false));
-        Assert.Null(DocumentRuleChecks.ReversalDate(Today.AddDays(3), Today.AddDays(3), At(12), rules, judgeToday: false));
+        Assert.Null(DocumentRuleChecks.ReversalDate(Today.AddDays(-3), Today.AddDays(-3), At(12), rules, clientCall: false));
+        Assert.Null(DocumentRuleChecks.ReversalDate(Today.AddDays(3), Today.AddDays(3), At(12), rules, clientCall: false));
 
-        var before = DocumentRuleChecks.ReversalDate(Today.AddDays(-4), Today.AddDays(-3), At(12), rules, judgeToday: false);
+        var before = DocumentRuleChecks.ReversalDate(Today.AddDays(-4), Today.AddDays(-3), At(12), rules, clientCall: false);
         Assert.Equal("stock.reversalBeforeOriginalAllowed", Assert.Single(before!.Rules!).Key);
     }
 

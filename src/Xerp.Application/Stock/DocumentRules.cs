@@ -63,8 +63,8 @@ public static class DocumentRuleChecks
     /// R15, R17: the date stage of a reversal. It answers once - <c>400 VALIDATION_FAILED</c> with key
     /// <c>documentDate</c> - with one <c>rules</c> element for every date rule that refused.
     /// </summary>
-    /// <param name="judgeToday">False for a reversal the system makes for a work order or an invoice: only its order to the original is judged.</param>
-    public static AppError? ReversalDate(DateOnly reversalDate, DateOnly originalDate, DateTime nowUtc, TenantRules rules, bool judgeToday = true)
+    /// <param name="clientCall">True for a reversal a client asks for. False for a reversal the system makes for a work order or an invoice: only its order to the original is judged.</param>
+    public static AppError? ReversalDate(DateOnly reversalDate, DateOnly originalDate, DateTime nowUtc, TenantRules rules, bool clientCall = true)
     {
         var errors = new ValidationErrors();
         var beforeOriginalAllowed = rules[RuleRegistry.StockReversalBeforeOriginalAllowed];
@@ -72,7 +72,7 @@ public static class DocumentRuleChecks
             errors.Add(DocumentDateField,
                 $"documentDate of a reversal must not be earlier than the date of the document it reverses, {Text(originalDate)}.",
                 RuleRegistry.StockReversalBeforeOriginalAllowed, false);
-        if (judgeToday)
+        if (clientCall)
         {
             var (past, future) = (rules[RuleRegistry.DocumentPastDateAllowed], rules[RuleRegistry.DocumentFutureDateAllowed]);
             switch (DocumentDateRules.Judge(reversalDate, nowUtc, past, future))
