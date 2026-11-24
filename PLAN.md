@@ -3,7 +3,7 @@
 Glavni pregled petlje arhitekt -> tester -> builder -> review -> merge. Redoslijed koraka dolazi iz
 `docs/roadmap.md` (piše ga arhitekt); ovaj dokument vodi orkestrator i ažurira ga nakon svakog koraka.
 
-Zadnje ažuriranje: 2026-11-16 21:30
+Zadnje ažuriranje: 2026-11-25
 
 ## Način rada od 2026-11-15
 
@@ -66,7 +66,13 @@ Oznake: ✅ gotovo · 🔄 u tijeku · ⬜ nije započeto · — ne primjenjuje 
 | 011a | Partner u zaglavlju skladišnog dokumenta (primka: dobavljač, izdatnica: kupac) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 012 | Konfigurabilna pravila (booleovi prekidači): registar, vrijednosti po tenantu, prvih 6 pravila | ✅ | ✅ | ✅ | ✅ | ✅ |
 | 013 | Konfigurabilna pravila: matični podaci (formati, duljine, obavezna polja) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| 014 | Konfigurabilna pravila: dokumenti (datumi, partner, inventura, cijene, životni ciklus narudžbe) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A01 | Agent tvrtke: upute, `guide`, `setup_status`, pravila jednostavno (`rule_set_many`, profili, pregled), `search` | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| RP01 | Izvještaji: `report_list` / `report_run`, 13 izvještaja, JSON i CSV | ✅ | 🔄 | ⬜ | ⬜ | ⬜ |
+| R01 | Pouzdanost: provjereni backupi, kopija izvan stroja, zdravlje backupa i uzbune, konzistentna čitanja | ✅ | — | ⬜ | ⬜ | ⬜ |
+| 017 | Brojčane serije po tvrtki (uzorak, znamenke, godišnji reset, nastavak numeracije) | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| I02 | Ulazni računi, obveze, otvorene stavke i starost dugovanja | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
+| S01 | SaaS platforma: samoregistracija, administracija tvrtke, OAuth za MCP, CORS, više servera, OpenAPI | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | W01 | Sastavnice i radni nalozi (proizvodnja) | ✅ | ✅ | ✅ | — | ✅ |
 | U01 | Korisnici i prijava imenom i lozinkom (sesijski ključ 12 h) | ✅ | ✅ | ✅ | — | ✅ |
 | I01 | Izlazni računi, plaćanja, storno, podaci o tvrtki | ✅ | ✅ | ✅ | — | ✅ |
@@ -201,3 +207,5 @@ Arhitektovi defaulti koji vrijede dok vlasnik ne kaže drugačije (detalji u ADR
   ništa se ne zamrzava dok je inventura otvorena; proknjižena inventura se može stornirati.
 - 2026-11-20 — vlasnik: prijava u tenant korisničkim imenom i lozinkom. Spec U01 izgrađen (korisnici, `POST /login/{tenant}`, `POST /logout`, 2 pravila `users.*`); xerp-web: prijava, bez "Novi tenant" kad je netko prijavljen, radni nalozi i sastavnice. Server: laptop preko Tailscalea.
 - 2026-11-20 — vlasnik: "napravi da postoje računi". Spec I01 izgrađen (računi RN-, PDV rekapitulacija, plaćanja, storno računom, opcionalno skidanje zalihe, podaci o tvrtki; 4 pravila `invoice.*`, 11 MCP alata). Testni podaci Vulca obrisani. Fiskalizacija nije napravljena.
+- 2026-11-24 — vlasnik: cilj je ERP spreman za produkciju, prodaje se kao SaaS (jedan backend s više servera i jednom bazom, bilo koji frontend; tvrtke smiju raditi svoje frontende). Najvažnije: agent tvrtke jednostavno koristi sustav, postavlja poslovna pravila i generira izvještaje. Odluke: više tvrtki na istom serveru (RLS 023 potreban), izvoz za računovođu umjesto glavne knjige, dozvole i audit log zasad ne, fiskalizacija kasnije. Builder i tester ponovo rade kao herdr sesije na Sonnetu; orkestrator je arhitekt. Novi redoslijed: 014 → A01 → RP01 → 015 → R01 → 017 → I02 → 023 → S01 → X01 (`docs/roadmap.md`, "Production plan").
+- 2026-11-25 — 014 spojen u `main` (13 pravila dokumenata, ukupno 70; novi kod `DATE_NOT_ALLOWED`); 802 unit + 2273 integracijska testa, svi prolaze; tri testerova testa bila pogrešna i ispravljena uz odobrenje arhitekta. Specovi A01, RP01, R01, 017, I02 napisani, 015 osvježen. Testovi za A01 napisani (`d4517e6`).
