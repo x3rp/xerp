@@ -120,9 +120,9 @@ public class Rule014DateTests(XerpFixture app)
     public async Task AC53_The_due_date_is_never_judged_by_the_date_rules()
     {
         var s = await Orders.SetupAsync(app);
+        await Stock.ReceiveAsync(s.Http, s.W1, s.A, 10);
         await Rules.SetAsync(s.Http, DocRules.FutureDate, false);
         await Rules.SetAsync(s.Http, DocRules.PastDate, false);
-        await Stock.ReceiveAsync(s.Http, s.W1, s.A, 10);
 
         foreach (var o in Kinds)
         {
