@@ -19,7 +19,7 @@ can no longer answer `500` because a master changed between two statements of th
 In scope
 1. Verification of every dump by a real restore into a scratch database.
 2. An optional off-site copy command run after every verified dump.
-3. A status file and `GET /health/backup`; an optional ping URL for an external monitor.
+3. A status file and `GET /health/backup`; an optional ping URL for an external monitor; and the `backups` item of `setup_status` (A01), which reads the same status.
 4. A restore drill script and its runbook in `docs/deployment.md`.
 5. Open item 007/1: document and order reads in one read-only snapshot.
 
