@@ -51,6 +51,27 @@ public sealed class CompanyOperations(IXerpDb db, ITenantContext context, ICurre
         }, cancellationToken);
     }
 
+    /// <summary>Spec A01: records that the company's business rules were looked at (also done by <c>rule_set_many</c>). Repeating it moves the time.</summary>
+    public async Task<Result<RulesReviewedDto>> MarkRulesReviewedAsync(CancellationToken cancellationToken = default)
+    {
+        var tenant = await currentTenant.ReadAsync(cancellationToken);
+        if (tenant is null || context.ApiKeyId is not { } actor)
+            return AppError.Unauthenticated();
+        return await db.SerializedPerTenantAsync<Result<RulesReviewedDto>>(async ct =>
+        {
+            var now = clock.UtcNow;
+            var profile = await db.CompanyProfiles.SingleOrDefaultAsync(ct);
+            if (profile is null)
+            {
+                profile = CompanyProfile.CreateForReview(tenant.Name, now, actor);
+                db.CompanyProfiles.Add(profile);
+            }
+            profile.MarkRulesReviewed(now);
+            await db.SaveChangesAsync(ct);
+            return new RulesReviewedDto(now);
+        }, cancellationToken);
+    }
+
     private static string? Text(ValidationErrors errors, string field, string? value, int maxLength)
     {
         if (OptionalTextRules.TryNormalize(value, maxLength, out var text))
@@ -62,5 +83,5 @@ public sealed class CompanyOperations(IXerpDb db, ITenantContext context, ICurre
     private static CompanyProfileDto ToDto(CompanyProfile? p, CurrentTenant tenant) => p is null
         ? new CompanyProfileDto(tenant.Name, null, null, null, null, null, null, null, null, null, null, null, null, tenant.Code, null, null)
         : new CompanyProfileDto(p.LegalName, p.TaxId, p.AddressLine1, p.AddressLine2, p.PostalCode, p.City, p.Region, p.CountryCode,
-            p.Iban, p.Email, p.Phone, p.Website, p.InvoiceFooter, tenant.Code, p.UpdatedAt, p.UpdatedBy);
+            p.Iban, p.Email, p.Phone, p.Website, p.InvoiceFooter, tenant.Code, p.UpdatedAt, p.UpdatedBy, p.RulesReviewedAt);
 }

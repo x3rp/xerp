@@ -85,7 +85,12 @@ public sealed class RuleChange : ITenantOwned
     public DateTime ChangedAt { get; private set; }
     public Guid ChangedBy { get; private set; }
 
-    public static RuleChange Record(RuleDefinition rule, RuleChangeAction action, bool oldValue, bool newValue, DateTime now, Guid actorKeyId) =>
+    /// <summary>Spec A01: why the rule was changed, as the caller said it in <c>rule_set_many</c>; null when not said.</summary>
+    public string? Reason { get; private set; }
+
+    public const int ReasonMaxLength = 500;
+
+    public static RuleChange Record(RuleDefinition rule, RuleChangeAction action, bool oldValue, bool newValue, DateTime now, Guid actorKeyId, string? reason = null) =>
         new()
         {
             Id = Guid.CreateVersion7(),
@@ -95,5 +100,6 @@ public sealed class RuleChange : ITenantOwned
             NewValue = newValue,
             ChangedAt = now,
             ChangedBy = actorKeyId,
+            Reason = reason,
         };
 }

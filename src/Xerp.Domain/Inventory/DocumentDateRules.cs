@@ -29,4 +29,10 @@ public static class DocumentDateRules
             return DateJudgement.AfterToday;
         return DateJudgement.Allowed;
     }
+
+    /// <summary>The earliest date that is not before today anywhere: a document dated earlier is "before today" (see <see cref="Judge"/>).</summary>
+    public static DateOnly Earliest(DateTime nowUtc) => DateOnly.FromDateTime(DateTime.SpecifyKind(nowUtc, DateTimeKind.Utc) + Westmost);
+
+    /// <summary>The latest date that is not after today anywhere: a document dated later is "after today".</summary>
+    public static DateOnly Latest(DateTime nowUtc) => DateOnly.FromDateTime(DateTime.SpecifyKind(nowUtc, DateTimeKind.Utc) + Eastmost);
 }

@@ -20,7 +20,27 @@ public sealed record RuleDto(
     Guid? UpdatedBy);
 
 /// <summary>One change of a rule (spec 012, section 4): the values in force before and after, when and by which API key.</summary>
-public sealed record RuleChangeDto(Guid Id, string Key, string Action, bool OldValue, bool NewValue, DateTime ChangedAt, Guid ChangedBy);
+public sealed record RuleChangeDto(Guid Id, string Key, string Action, bool OldValue, bool NewValue, DateTime ChangedAt, Guid ChangedBy, string? Reason);
+
+/// <summary>Spec A01, 2.4: a group of rules with its plain-language description and how many of its rules differ from the default.</summary>
+public sealed record RuleGroupDto(string Group, string Description, int RuleCount, int ChangedCount);
+
+/// <summary>One change of <c>rule_set_many</c> / <c>rule_preview</c>; the value is kept as sent so the operation judges it.</summary>
+public sealed record RuleChangeInput(string? Key = null, JsonElement Value = default);
+
+/// <summary>The arguments of <c>rule_set_many</c> (with a reason) and <c>rule_preview</c> (without).</summary>
+public sealed record SetManyRulesInput(IReadOnlyList<RuleChangeInput>? Changes = null, string? Reason = null);
+
+public sealed record RulePreviewInput(IReadOnlyList<RuleChangeInput>? Changes = null);
+
+/// <summary>What a change would do: the rule, its old and new value, what it judges, and how many current drafts it would refuse (null where that is not cheap to know).</summary>
+public sealed record RulePreviewDto(string Key, string Name, bool OldValue, bool NewValue, string Judges, int? AffectedDrafts);
+
+public sealed record RuleProfileSummaryDto(string Key, string Name, string Description, int RuleCount);
+
+public sealed record RuleSettingDto(string Key, bool Value);
+
+public sealed record RuleProfileDto(string Key, string Name, string Description, IReadOnlyList<RuleSettingDto> Changes);
 
 public sealed record ListRulesInput(string? Search = null, string? Group = null, string? Source = null, int? Limit = null, int? Offset = null);
 

@@ -1,3 +1,4 @@
+using Xerp.Application.Agent;
 using Xerp.Application.ApiKeys;
 using Xerp.Application.Articles;
 using Xerp.Application.ArticleUnits;
@@ -38,6 +39,13 @@ public static class ToolCatalog
 
     /// <summary>Appended to the description of the create and the update tool of a master (spec 013, section 5).</summary>
     /// <param name="group">The group of the master's rules: <c>uom</c>, <c>article</c>, <c>partner</c> or <c>warehouse</c>.</param>
+    private static System.Text.Json.JsonElement ObjectOutput => System.Text.Json.JsonSerializer.SerializeToElement(new { type = "object" });
+
+    private static System.Text.Json.Nodes.JsonObject RuleChangesSchema(string description) =>
+        ArrayOf(description, 1, Xerp.Domain.Rules.RuleRegistry.All.Count, [],
+            ("key", Text("The rule's key, for example `stock.negativeStockAllowed` (see `rule_list`).")),
+            ("value", Flag("true or false, as a JSON boolean.")));
+
     private static string MasterRules(string group, bool update, bool partner = false) =>
         " " + (update ? CodeChangeNotAllowed + " " : "") + NameTaken + (partner ? " " + TaxIdTaken : "")
         + $" This company's rules can make optional fields required and names unique (`rule_list` with `group` = `{group}`); a refusal's `rules` names the rule that refused.";
@@ -1100,6 +1108,78 @@ public static class ToolCatalog
                 .. Paging,
             ]),
             (services, input, ct) => services.GetRequiredService<RuleOperations>().ListChangesAsync(input, ct)),
+
+        // ---- the company's agent (spec A01)
+        XerpTool.For<GuideInput, object>("guide", ToolKind.Read,
+            "Playbooks for doing business tasks with these tools, written for you: which tools in which order, the arguments that matter, the usual errors and what to do. "
+            + "Without `topic` it lists the topics with one line each; with a `topic` it returns that playbook as Markdown (`topic`, `summary`, `markdown`). "
+            + "Start with `getting-started`. It reads nothing of the company's data and is the same for every company. `NOT_FOUND`: no such topic (call `guide` without a topic).",
+            Input([], ("topic", Text("The topic to read, for example `buying`, `selling`, `invoicing`, `business-rules`, `reports`, `errors`. Omit to list the topics."))),
+            (services, input, ct) => Task.FromResult(services.GetRequiredService<GuideOperations>().Answer(input.Topic))) with { OutputSchema = ObjectOutput },
+
+        XerpTool.For<NoArguments, SetupStatusDto>("setup_status", ToolKind.Read,
+            "Shows what this company still needs before it is set up: a checklist computed from its data, each item `{ key, done, detail, nextStep }`, and overall `{ ready, done, total }`. "
+            + "`nextStep` names the tool to call and the `guide` topic that explains it. The backups item says `unknown` until backup monitoring exists. Call it first, and again after each setup step.",
+            Input([]),
+            (services, _, ct) => services.GetRequiredService<SetupStatusOperations>().GetAsync(ct)),
+
+        XerpTool.For<NoArguments, ItemsResult<RuleGroupDto>>("rule_group_list", ToolKind.Read,
+            "Gives an overview of the business rules by group (`stock`, `document`, `purchase`, `sales`, `invoice`, `partner`, ...): each with a one-sentence plain-language description, how many rules it has (`ruleCount`) "
+            + "and how many the company has changed from the default (`changedCount`). Then read a group with `rule_list` and its `group`.",
+            Input([]),
+            (services, _, ct) => services.GetRequiredService<RuleOperations>().ListGroupsAsync(ct)),
+
+        XerpTool.For<SetManyRulesInput, ItemsResult<RuleDto>>("rule_set_many", ToolKind.Repeatable,
+            "Applies several business rules in one call, all or none, and returns the rules that changed. This is how you apply a policy the user described, or a profile from `rule_profile_get`: pass its `changes`. "
+            + "Show the user what will change (`rule_preview`) and apply only after they agree; never change a rule unless the user asked for the policy to change. "
+            + "Each changed rule gets one history entry (`rule_change_list`) carrying the same `reason`. A rule already at the given value is not changed; a rule given its default value returns to the default. "
+            + "It also marks the company's rules as reviewed (`rulesReviewedAt`). `VALIDATION_FAILED` with `errors` per item: `changes[i].key` unknown or repeated, `changes[i].value` not the JSON boolean true or false, `changes` empty, `reason` too long; nothing is changed then.",
+            Input(["changes"],
+            [
+                ("changes", RuleChangesSchema("The rules to set: each `{ key, value }` with the rule's `key` (see `rule_list`) and `value` true or false. Each rule at most once.")),
+                ("reason", NullableText("Why the policy changes, in the user's words, for the history; at most 500 characters.")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<RuleOperations>().SetManyAsync(input, ct)),
+
+        XerpTool.For<NoArguments, ItemsResult<RuleProfileSummaryDto>>("rule_profile_list", ToolKind.Read,
+            "Lists the ready-made combinations of business rules you can propose to the user: `defaults` (what Xerp ships), `strict` (wholesale, accounting-heavy), `retail`, `production`. "
+            + "Each has a `key`, `name`, `description` and `ruleCount`. Read one with `rule_profile_get`.",
+            Input([]),
+            (services, _, ct) => Task.FromResult(services.GetRequiredService<RuleProfileOperations>().List())),
+
+        XerpTool.For<RuleKeyInput, RuleProfileDto>("rule_profile_get", ToolKind.Read,
+            "Returns one rule profile: its `description` and `changes`, a list of `{ key, value }`. Preview it with `rule_preview` and, once the user agrees, apply it with `rule_set_many` using those `changes`. "
+            + "`NOT_FOUND`: no such profile (see `rule_profile_list`).",
+            Input(["key"], ("key", Text("The profile's key from `rule_profile_list`, for example `strict`."))),
+            (services, input, ct) => Task.FromResult(services.GetRequiredService<RuleProfileOperations>().Get(input))),
+
+        XerpTool.For<RulePreviewInput, ItemsResult<RulePreviewDto>>("rule_preview", ToolKind.Read,
+            "Shows what a set of rule changes would do, without changing anything: for each, the rule's `name`, `oldValue`, `newValue`, what it `judges`, and `affectedDrafts` - how many current drafts would be refused "
+            + "at their next save or posting (documents without a partner or reference, past-dated drafts), or null where that is not cheap to know. Tell the user, for example, '3 drafts will need a reference'. "
+            + "`VALIDATION_FAILED` as in `rule_set_many`.",
+            Input(["changes"], ("changes", RuleChangesSchema("The rules to preview: each `{ key, value }`."))),
+            (services, input, ct) => services.GetRequiredService<RuleOperations>().PreviewAsync(input, ct)),
+
+        XerpTool.For<NoArguments, RulesReviewedDto>("setup_mark_rules_reviewed", ToolKind.Repeatable,
+            "Records that the user has looked at the business rules and is content with them as they are (the `rulesReviewed` item of `setup_status`). `rule_set_many` does the same when it changes rules. Returns `rulesReviewedAt`.",
+            Input([]),
+            (services, _, ct) => services.GetRequiredService<CompanyOperations>().MarkRulesReviewedAsync(ct)),
+
+        XerpTool.For<SearchInput, ItemsResult<SearchHitDto>>("search", ToolKind.Read,
+            "Finds records by something a person remembers, in one call: articles (code, name, barcode), partners (code, name, tax id), warehouses (code, name), stock documents and orders (number, reference) "
+            + "and invoices (number, reference). Case-insensitive, text may be part of the value; at most 10 hits per type. Each hit is `{ type, id, code or number, name or label, status }`; use the `id` with the type's `*_get` tool. "
+            + "`VALIDATION_FAILED`: `text` is missing or blank, or a `types` entry is unknown.",
+            Input(["text"],
+            [
+                ("text", Text("What to look for: part of a name, code, number, barcode, tax id or reference.")),
+                ("types", new System.Text.Json.Nodes.JsonObject
+                {
+                    ["type"] = "array",
+                    ["description"] = "Look only for these types: `article`, `partner`, `warehouse`, `document`, `order`, `invoice`. Omit to look for all.",
+                    ["items"] = new System.Text.Json.Nodes.JsonObject { ["type"] = "string", ["enum"] = new System.Text.Json.Nodes.JsonArray("article", "partner", "warehouse", "document", "order", "invoice") },
+                }),
+            ]),
+            (services, input, ct) => services.GetRequiredService<SearchOperations>().SearchAsync(input, "text", ct)),
 
         // ---- API keys (creating a key is HTTP only: a secret never travels through a tool result, ADR-0010)
         XerpTool.For<ListApiKeysInput, PagedResult<ApiKeyDto>>("api_key_list", ToolKind.Read,

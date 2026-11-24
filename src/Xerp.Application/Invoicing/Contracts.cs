@@ -99,4 +99,7 @@ public sealed record InvoiceDeleted(bool Deleted = true);
 public sealed record CompanyProfileDto(
     string LegalName, string? TaxId, string? AddressLine1, string? AddressLine2, string? PostalCode, string? City, string? Region,
     string? CountryCode, string? Iban, string? Email, string? Phone, string? Website, string? InvoiceFooter, string TenantCode,
-    DateTime? UpdatedAt, Guid? UpdatedBy);
+    DateTime? UpdatedAt, Guid? UpdatedBy, DateTime? RulesReviewedAt = null);
+
+/// <summary>Spec A01: when the business rules were marked as reviewed.</summary>
+public sealed record RulesReviewedDto(DateTime RulesReviewedAt);

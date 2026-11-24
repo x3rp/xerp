@@ -1479,6 +1479,10 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                     b.Property<bool>("OldValue")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -1872,6 +1876,9 @@ namespace Xerp.Infrastructure.Persistence.Migrations
                     b.Property<string>("Region")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("RulesReviewedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TaxId")
                         .HasMaxLength(20)

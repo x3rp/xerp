@@ -513,6 +513,7 @@ public sealed class XerpDbContext(DbContextOptions<XerpDbContext> options, ITena
             e.Property(c => c.Id).ValueGeneratedNever();
             e.Property(c => c.Key).HasMaxLength(RuleDefinition.KeyMaxLength);
             e.Property(c => c.Action).HasMaxLength(10).HasConversion(v => v.ToName(), v => RuleChangeActionNames.Parse(v));
+            e.Property(c => c.Reason).HasMaxLength(RuleChange.ReasonMaxLength);
             // The history of a tenant newest first, and the newest change of one rule.
             e.HasIndex(c => new { c.TenantId, c.Key, c.ChangedAt });
             e.HasIndex(c => new { c.TenantId, c.ChangedAt });
