@@ -152,7 +152,21 @@ rules and generate its reports.** That moves A01 and RP01 to the front, right af
 | 7 | **I02** incoming invoices, payables, open items and aging + their reports | L |
 | 8 | **023** row-level security and a non-owner database role (before a second real company) | M |
 | 9 | **X01** accountant export: IRA / URA books and payments, as fixed-layout reports | S |
-| 10 | **022** OpenAPI document | S |
+| 10 | **022** OpenAPI document — the contract any third-party frontend (web, desktop, mobile) is built against | S |
+
+**Owner, 2026-11-24: Xerp is sold as SaaS.** A company subscribes; its people work in the web client, a desktop
+or any other frontend, and its agents through the CLI and MCP — all at the same time, against one backend:
+several stateless API servers, one PostgreSQL. Already true: every client uses the same `/api/v1` and `/mcp`;
+the tenant lock is a database row lock (works across servers); MCP is stateless; sessions and keys live in the
+database. Missing, spec **S01 SaaS platform** (after 023):
+- self-service onboarding: sign-up creates the tenant, its owner user and default data (today: admin key + curl);
+- company administration of its users and agent keys from any client;
+- CORS allow-list per deployment (browser frontends on other origins);
+- OAuth 2.1 for `/mcp` and the API, so hosted agents (claude.ai / ChatGPT connectors) can connect a company
+  without pasting a key;
+- multi-server deployment: migrations as a separate one-shot job instead of at every API start, load balancer
+  and health checks, rate limits at the proxy (today per process), `compose`/k8s example;
+- plans, limits and billing: later, owner decision.
 
 ### POS module (owner, 2026-10-13)
 
