@@ -182,15 +182,15 @@ public class StockDocumentPartnerRulesTests
         var warehouse = new HeaderReference("warehouseId", W1, IsActive: true);
         var partner = new HeaderReference("partnerId", Sup, IsActive: true);
 
-        Assert.Null(StockPartnerChecks.HeaderReferences(warehouse, partner));
-        Assert.Null(StockPartnerChecks.HeaderReferences(warehouse));
-        AssertKeys(StockPartnerChecks.HeaderReferences(warehouse, partner with { IsActive = null }), ErrorCodes.ReferenceNotFound, "partnerId");
-        AssertKeys(StockPartnerChecks.HeaderReferences(warehouse with { IsActive = null }, partner with { IsActive = null }),
+        Assert.Null(StockPartnerChecks.HeaderReferences(false, warehouse, partner));
+        Assert.Null(StockPartnerChecks.HeaderReferences(false, warehouse));
+        AssertKeys(StockPartnerChecks.HeaderReferences(false, warehouse, partner with { IsActive = null }), ErrorCodes.ReferenceNotFound, "partnerId");
+        AssertKeys(StockPartnerChecks.HeaderReferences(false, warehouse with { IsActive = null }, partner with { IsActive = null }),
             ErrorCodes.ReferenceNotFound, "partnerId", "warehouseId");
         // E2: the not-found stage answers alone.
-        AssertKeys(StockPartnerChecks.HeaderReferences(warehouse with { IsActive = false }, partner with { IsActive = null }),
+        AssertKeys(StockPartnerChecks.HeaderReferences(false, warehouse with { IsActive = false }, partner with { IsActive = null }),
             ErrorCodes.ReferenceNotFound, "partnerId");
-        AssertKeys(StockPartnerChecks.HeaderReferences(warehouse with { IsActive = null }, partner with { IsActive = false }),
+        AssertKeys(StockPartnerChecks.HeaderReferences(false, warehouse with { IsActive = null }, partner with { IsActive = false }),
             ErrorCodes.ReferenceNotFound, "warehouseId");
     }
 
@@ -200,11 +200,11 @@ public class StockDocumentPartnerRulesTests
         var warehouse = new HeaderReference("warehouseId", W1, IsActive: false);
         var partner = new HeaderReference("partnerId", Sup, IsActive: false);
 
-        AssertKeys(StockPartnerChecks.HeaderReferences(warehouse, partner), ErrorCodes.ReferenceInactive, "partnerId", "warehouseId");
-        AssertKeys(StockPartnerChecks.HeaderReferences(warehouse with { IsActive = true }, partner), ErrorCodes.ReferenceInactive, "partnerId");
+        AssertKeys(StockPartnerChecks.HeaderReferences(false, warehouse, partner), ErrorCodes.ReferenceInactive, "partnerId", "warehouseId");
+        AssertKeys(StockPartnerChecks.HeaderReferences(false, warehouse with { IsActive = true }, partner), ErrorCodes.ReferenceInactive, "partnerId");
         // E3: a draft keeps a master deactivated since.
-        AssertKeys(StockPartnerChecks.HeaderReferences(warehouse, partner with { AlreadyAssigned = true }), ErrorCodes.ReferenceInactive, "warehouseId");
-        Assert.Null(StockPartnerChecks.HeaderReferences(warehouse with { AlreadyAssigned = true }, partner with { AlreadyAssigned = true }));
+        AssertKeys(StockPartnerChecks.HeaderReferences(false, warehouse, partner with { AlreadyAssigned = true }), ErrorCodes.ReferenceInactive, "warehouseId");
+        Assert.Null(StockPartnerChecks.HeaderReferences(false, warehouse with { AlreadyAssigned = true }, partner with { AlreadyAssigned = true }));
     }
 
     [Fact]

@@ -19,7 +19,7 @@ public class RecordAddressTests
     private static readonly UnitOfMeasureOperations Units = new(null!, Me, null!, null!);
     private static readonly ArticleOperations Articles = new(null!, Me, null!, null!);
     private static readonly ApiKeyOperations Keys = new(null!, Me, null!, null!, null!);
-    private static readonly ArticleUnitOperations ArticleUnits = new(null!, Me, null!);
+    private static readonly ArticleUnitOperations ArticleUnits = new(null!, Me, null!, null!);
 
     private static void AssertError<T>(Result<T> result, string code, params string[] expectedKeys) where T : notnull
     {

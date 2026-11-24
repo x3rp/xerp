@@ -328,6 +328,20 @@ public sealed class StockDocument : ITenantOwned
     }
 
     /// <summary>
+    /// Spec 014, R28: a draft count posted although its book quantities are outdated takes the stock of the
+    /// moment of posting as its book quantities, in line order; the differences then follow from them.
+    /// </summary>
+    public void RetakeBookQuantities(IReadOnlyList<decimal> bookQuantities)
+    {
+        if (Type != StockDocumentType.Count || !IsDraft)
+            throw new InvalidOperationException("Only a draft count has book quantities to retake.");
+        if (bookQuantities.Count != _lines.Count || bookQuantities.Any(b => !CountRules.IsValidBookQuantity(b)))
+            throw new ArgumentException("One valid book quantity per line is required.", nameof(bookQuantities));
+        foreach (var (line, book) in Lines.OrderBy(l => l.LineNo).Zip(bookQuantities))
+            line.SetBookQuantity(book);
+    }
+
+    /// <summary>
     /// Posts the draft (R12, R14; spec 006, R6; spec 007, R17-R19): status, number and posting attribution are
     /// set, every line is converted once more with the factor given for it and keeps that factor and the
     /// resulting base quantity for good, and the ledger entries are returned - one positive entry per line for
@@ -343,20 +357,6 @@ public sealed class StockDocument : ITenantOwned
     /// a line in the base unit.
     /// </param>
     /// <exception cref="InvalidOperationException">The document is not a draft (R11), or a line does not convert (R15).</exception>
-    /// <summary>
-    /// Spec 014, R28: a draft count posted although its book quantities are outdated takes the stock of the
-    /// moment of posting as its book quantities, in line order; the differences then follow from them.
-    /// </summary>
-    public void RetakeBookQuantities(IReadOnlyList<decimal> bookQuantities)
-    {
-        if (Type != StockDocumentType.Count || !IsDraft)
-            throw new InvalidOperationException("Only a draft count has book quantities to retake.");
-        if (bookQuantities.Count != _lines.Count || bookQuantities.Any(b => !CountRules.IsValidBookQuantity(b)))
-            throw new ArgumentException("One valid book quantity per line is required.", nameof(bookQuantities));
-        foreach (var (line, book) in Lines.OrderBy(l => l.LineNo).Zip(bookQuantities))
-            line.SetBookQuantity(book);
-    }
-
     public IReadOnlyList<StockLedgerEntry> Post(string number, IReadOnlyList<decimal> factors, DateTime now, Guid actorKeyId)
     {
         EnsureDraft();

@@ -31,9 +31,9 @@ public class ConfigurableRuleTests
     // ---- the registry (R1, R4; ADR-0020, decision 2)
 
     [Fact]
-    public void R1_The_registry_has_exactly_the_fifty_seven_rules_ordered_by_key_with_their_defaults()
+    public void R1_The_registry_has_exactly_the_seventy_rules_ordered_by_key_with_their_defaults()
     {
-        // Spec 013, R1 and AC-10: the six of spec 012 and the 24 of the masters; spec P01, AC-10: ten more (P01/AC-01, item 1); spec P02, AC-10: eight more (P02/AC-01, item 1).
+        // Spec 013, R1 and AC-10: the six of spec 012 and the 24 of the masters; spec P01, AC-10: ten more (P01/AC-01, item 1); spec P02, AC-10: eight more (P02/AC-01, item 1); spec 014, AC-10: 13 more (014/AC-01, item 1).
         Assert.Equal(
             [
                 ("article.barcodeUnique", true),
@@ -45,6 +45,11 @@ public class ConfigurableRuleTests
                 ("article.taxRateRequired", false),
                 ("articleCategory.codeChangeable", true),
                 ("articleCategory.nameUnique", false),
+                ("document.futureDateAllowed", true),
+                ("document.pastDateAllowed", true),
+                ("document.referenceRequired", false),
+                ("document.repeatedArticleAllowed", true),
+                ("document.warehouseRequired", false),
                 ("invoice.backdatingAllowed", false),
                 ("invoice.customerRequired", true),
                 ("invoice.issueMovesStock", false),
@@ -70,15 +75,23 @@ public class ConfigurableRuleTests
                 ("posOperator.roleRequired", true),
                 ("posRole.codeChangeable", true),
                 ("posRole.nameUnique", false),
+                ("posting.activeMastersRequired", true),
                 ("production.componentsMayDifferFromBom", true),
                 ("production.consumptionMayDifferFromPlan", true),
                 ("production.producedQuantityMayDifferFromPlan", true),
                 ("purchase.overReceiptAllowed", false),
                 ("purchase.partnerRequired", true),
+                ("references.inactiveAssignable", false),
                 ("sales.overDeliveryAllowed", false),
                 ("sales.partnerRequired", true),
                 ("sales.reservedStockProtected", false),
+                ("stock.issuePartnerRequired", false),
                 ("stock.negativeStockAllowed", false),
+                ("stock.outdatedCountAllowed", false),
+                ("stock.partnerRoleRequired", true),
+                ("stock.receiptPartnerRequired", false),
+                ("stock.reversalActiveMastersRequired", false),
+                ("stock.reversalBeforeOriginalAllowed", false),
                 ("taxRate.codeChangeable", true),
                 ("taxRate.nameUnique", false),
                 ("uom.codeChangeable", true),
