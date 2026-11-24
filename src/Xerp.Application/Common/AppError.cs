@@ -21,6 +21,7 @@ public static class ErrorCodes
     public const string UnitNotOnArticle = "UNIT_NOT_ON_ARTICLE";
     public const string QuantityNotConvertible = "QUANTITY_NOT_CONVERTIBLE";
     public const string CountOutdated = "COUNT_OUTDATED";
+    public const string DateNotAllowed = "DATE_NOT_ALLOWED";
     public const string PartnerRoleMissing = "PARTNER_ROLE_MISSING";
     public const string OrderNotOpen = "ORDER_NOT_OPEN";
     public const string OrderMismatch = "ORDER_MISMATCH";

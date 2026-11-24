@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Xerp.Domain.Rules;
 
 namespace Xerp.Application.Common;
 
@@ -18,15 +19,32 @@ public static class ReferenceCheck
     /// <param name="field">The request field that carries the id (<c>baseUnitId</c>); it keys <c>errors</c>.</param>
     /// <param name="id">The referenced id.</param>
     /// <param name="alreadyAssigned">True when the addressed record already points at this id: an inactive target is then kept.</param>
+    /// <param name="inactiveAssignable">
+    /// Spec 014, R22: the tenant's <c>references.inactiveAssignable</c> where that rule judges the reference -
+    /// true lets an inactive target be assigned, false refuses it naming the rule. Null where no rule does: the
+    /// refusal is then an invariant's.
+    /// </param>
     /// <returns>Null when the reference is acceptable; otherwise REFERENCE_NOT_FOUND or REFERENCE_INACTIVE.</returns>
     public static async Task<AppError?> ValidateAsync(
-        IQueryable<bool> isActiveOfTarget, string field, Guid id, bool alreadyAssigned, CancellationToken cancellationToken)
+        IQueryable<bool> isActiveOfTarget, string field, Guid id, bool alreadyAssigned, CancellationToken cancellationToken,
+        bool? inactiveAssignable = null)
     {
         var isActive = await isActiveOfTarget.Select(active => (bool?)active).SingleOrDefaultAsync(cancellationToken);
         if (isActive is null)
             return AppError.ReferenceNotFound(field, id);
         if (isActive == false && !alreadyAssigned)
-            return AppError.ReferenceInactive(field, id);
+            return Inactive(AppError.ReferenceInactive(field, id), inactiveAssignable);
         return null;
     }
+
+    /// <summary>
+    /// Spec 014, R22, R26: an inactive reference that would be newly assigned. Null when the tenant allows it;
+    /// otherwise <paramref name="error"/>, naming <c>references.inactiveAssignable</c> when that rule judged it.
+    /// </summary>
+    public static AppError? Inactive(AppError error, bool? inactiveAssignable) => inactiveAssignable switch
+    {
+        true => null,
+        false => error.RefusedBy(RuleRegistry.ReferencesInactiveAssignable, false),
+        null => error,
+    };
 }

@@ -215,6 +215,7 @@ Every non-2xx response under `/api/v1` is `application/problem+json` (RFC 9457) 
 | 409 | `UNIT_NOT_ON_ARTICLE` | A document line's unit is neither the base unit nor an alternative unit of its article. `errors` has `lines[i].unitId`. |
 | 409 | `QUANTITY_NOT_CONVERTIBLE` | A line's quantity converts to a base quantity of zero or above the maximum. `errors` has `lines[i].quantity`. |
 | 409 | `COUNT_OUTDATED` | Posting a stock count whose book quantity no longer equals stock on hand (spec 008). `errors` has `lines[i].quantity` for the outdated lines. |
+| 409 | `DATE_NOT_ALLOWED` | Posting a stock document or confirming an order dated before or after today while `document.pastDateAllowed` / `document.futureDateAllowed` is false (spec 014). `errors` has `documentDate` or `orderDate`. |
 | 409 | `PARTNER_ROLE_MISSING` | The partner named on an order, or on an unlinked receipt or issue (011a), lacks the role the document needs (`isSupplier` / `isCustomer`). `errors` has `supplierId` / `customerId` / `partnerId`. |
 | 409 | `ORDER_NOT_OPEN` | A stock document is saved or posted against an order that is not `confirmed`. `errors` has `purchaseOrderId` / `salesOrderId`. |
 | 409 | `ORDER_MISMATCH` | A stock document linked to an order names another warehouse or (011a) another partner, or a line's article is not its order line's. `errors` has `warehouseId`, `partnerId` and/or `lines[i].articleId`. |

@@ -202,6 +202,15 @@ public static class ToolCatalog
         $"The {o.Partner} (`{o.PartnerId}`) is required unless the rule `{o.PartnerRule}` is false for this company (see `rule_get`): then `{o.PartnerId}` may be null and the order has no {o.Partner} (`{o.Partner}` is null). "
         + $"While the rule is true, an order without a {o.Partner} is refused with `VALIDATION_FAILED` and `rules` names `{o.PartnerRule}`.";
 
+    /// <summary>Spec 014, section 5: what the save tools of documents and orders say about the rules of saving.</summary>
+    private const string DocumentSaveRules14 =
+        "This company's rules can require a `reference`, a named `warehouseId` and (on a receipt or issue not linked to an order) a `partnerId`, can forbid the same article on two lines, "
+        + "and can allow inactive records to be named (`rule_list` with `group` = `document`, `stock` or `references`); a refusal's `rules` names the rule.";
+
+    /// <summary>Spec 014, section 5: the date rules of posting, confirmation and reversal.</summary>
+    private const string DateRules14 =
+        "`DATE_NOT_ALLOWED`: the rule `document.pastDateAllowed` or `document.futureDateAllowed` is false and the date is before or after today (`errors` names the date); nothing changed - change the draft's date. ";
+
     /// <summary>Spec 012, section 5: how a refusal by a configurable rule shows.</summary>
     private const string RulesNamed =
         "A refusal by one of these rules carries `rules`: the `key` of the rule that refused, the `value` it has and the `errors` keys it produced (`fields`). "
@@ -765,7 +774,7 @@ public static class ToolCatalog
             + "The draft reserves nothing of the order either - quantities are compared with it when the document is posted. A document has at most one of the two links. "
             + "`partnerId` is optional: the supplier of a receipt (a partner with `isSupplier`) or the customer of an issue (a partner with `isCustomer`); it is not allowed on a transfer or a count. "
             + "On a document linked to an order leave it out - the order's partner is taken, and another one is refused. The result's `partner` shows the partner, or null. "
-            + Validation + " " + StockReferences + " " + StockPartner + " " + OrderLink,
+            + Validation + " " + StockReferences + " " + StockPartner + " " + OrderLink + " " + DocumentSaveRules14,
             Input(["type", "documentDate", "lines"],
             [
                 ("type", Text("`receipt`: goods come into the warehouse. `issue`: goods leave it. `transfer`: goods move from `warehouseId` to `toWarehouseId`. `count`: stock in `warehouseId` is set to the counted quantities. Cannot be changed later.", "receipt", "issue", "transfer", "count")),
@@ -783,7 +792,7 @@ public static class ToolCatalog
             + "except `toWarehouseId`, which is required for a transfer only (the destination; `warehouseId` is the source). "
             + "A receipt or an issue must send `partnerId`: null removes the partner (on a document linked to an order it stays the order's partner); a transfer or a count leaves it out. "
             + "The type and the link to a purchase order or a sales order cannot change; on a linked document every line needs `orderLineNo`. Saving a count takes the current stock on hand as `bookQuantity` of every line anew. A line's `unitId` defaults to the article's base unit; stock is always kept in base units. "
-            + Validation + " `NOT_FOUND`: no such document in this tenant. " + DocumentPosted + " " + StockReferences + " " + StockPartner + " " + OrderLink,
+            + Validation + " `NOT_FOUND`: no such document in this tenant. " + DocumentPosted + " " + StockReferences + " " + StockPartner + " " + OrderLink + " " + DocumentSaveRules14,
             Input(["id", "documentDate", "warehouseId", "reference", "note", "lines"],
                 [IdOf("draft stock document to replace"), .. StockDocumentFields(update: true)]),
             (services, id, input, ct) => services.GetRequiredService<StockDocumentOperations>().ReplaceAsync(id, input, ct)),
@@ -822,7 +831,9 @@ public static class ToolCatalog
             + "lower the quantities with `stock_document_update` and post again. It is the rule `purchase.overReceiptAllowed` (for a receipt) or `sales.overDeliveryAllowed` (for a delivery) that refuses, both false by default: "
             + "where the rule is true, more than ordered may be received or delivered, without limit, and the order line then has nothing outstanding. "
             + "A delivery can fail with `INSUFFICIENT_STOCK` although its sales order is confirmed: confirming reserves nothing physically, and the goods must be on hand in the order's warehouse when the delivery is posted. "
-            + "Order of the checks a rule decides: the order's quantities, then stock, then reservation. " + RulesNamed,
+            + "Order of the checks a rule decides: the order's quantities, then stock, then reservation. " + DateRules14
+            + "`REFERENCE_INACTIVE` at posting is the rule `posting.activeMastersRequired` (default true), `PARTNER_ROLE_MISSING` the rule `stock.partnerRoleRequired` (default true) "
+            + "and `COUNT_OUTDATED` the rule `stock.outdatedCountAllowed` (default false; where it is true an outdated count is posted against the stock of this moment). " + RulesNamed,
             Input(["id"], IdOf("draft stock document to post")),
             (services, input, ct) => services.GetRequiredService<StockDocumentOperations>().PostAsync(input.Id, ct)),
 
@@ -831,10 +842,10 @@ public static class ToolCatalog
             + "A reversal is permanent and cannot itself be reversed. It cancels the whole document: the reversing document has the same type, warehouses and lines, "
             + "its own number from the same series, and ledger entries with the opposite sign, so stock is as if the original had never been posted; "
             + "the original gets status `reversed`. To correct a mistake, reverse and then create a new document with `stock_document_create`. "
-            + "It either does all of this or nothing. Inactive warehouses or articles do not prevent a reversal. The reversing document has the original's `partner`; nothing about the partner is checked. "
+            + "It either does all of this or nothing. By default inactive warehouses, articles or partner do not prevent a reversal; where the rule `stock.reversalActiveMastersRequired` is true it is refused with `REFERENCE_INACTIVE` (`errors` says which) until they are active again. The reversing document has the original's `partner`; nothing about its role is checked. "
             + "Reversing a receipt linked to a purchase order or a delivery linked to a sales order gives its quantities back to the order lines, whatever the order's status, and does not change that status; "
             + "a reversed delivery brings the goods back into stock, and while the order is confirmed they are reserved again. "
-            + Validation + " `documentDate` earlier than the original's is one of them. `NOT_FOUND`: no such document in this tenant. "
+            + Validation + " `documentDate` earlier than the original's is one of them (rule `stock.reversalBeforeOriginalAllowed`, default false), and so is a date before or after today where `document.pastDateAllowed` / `document.futureDateAllowed` is false. `NOT_FOUND`: no such document in this tenant. "
             + "`INVALID_STATE`: the document is a draft, is already reversed, or is itself a reversing document. "
             + "`INSUFFICIENT_STOCK`: the goods the original brought in have already left, so the reversal would make stock negative; `errors` names the original's lines (`lines[0].quantity`). "
             + "For a count this concerns lines that added stock (a surplus); reversing a count undoes its ledger entries and restores neither the counted nor the book quantity. "
@@ -914,14 +925,14 @@ public static class ToolCatalog
             + "Only stock articles can be ordered. The supplier must be a partner with `isSupplier` = true. " + OrderPartnerRule(Purchase) + " "
             + "A draft orders nothing: it has no number, no incoming quantity and cannot be received against until confirmed with `purchase_order_confirm`. "
             + "Without `warehouseId` the order is created on the tenant's default warehouse; the result's `warehouse` shows which warehouse was taken. "
-            + Validation + " " + OrderReferences(Purchase),
+            + Validation + " " + OrderReferences(Purchase) + " " + DocumentSaveRules14,
             Input(["orderDate", "lines"], OrderFields(Purchase, update: false)),
             (services, input, ct) => services.GetRequiredService<PurchaseOrderOperations>().CreateAsync(input, ct)),
 
         XerpTool.WithId<ReplacePurchaseOrderInput, PurchaseOrderDto>("purchase_order_update", ToolKind.Update,
             "Replaces the dates, supplier, warehouse, reference, note and all lines of a draft purchase order; every argument is required (`expectedDate`, `supplierId`, `reference` and `note` may be null). "
             + OrderPartnerRule(Purchase) + " "
-            + Validation + " `NOT_FOUND`: no such order in this tenant. " + OrderConfirmed(Purchase) + " " + OrderReferences(Purchase),
+            + Validation + " `NOT_FOUND`: no such order in this tenant. " + OrderConfirmed(Purchase) + " " + OrderReferences(Purchase) + " " + DocumentSaveRules14,
             Input(["id", "orderDate", "expectedDate", "supplierId", "warehouseId", "reference", "note", "lines"],
                 [IdOf("draft purchase order to replace"), .. OrderFields(Purchase, update: true)]),
             (services, id, input, ct) => services.GetRequiredService<PurchaseOrderOperations>().ReplaceAsync(id, input, ct)),
@@ -938,7 +949,8 @@ public static class ToolCatalog
             + "`NOT_FOUND`: no such order in this tenant. " + OrderConfirmed(Purchase) + " "
             + "`REFERENCE_INACTIVE`: the supplier, the warehouse or an article of the order is inactive (`errors` says which: `supplierId`, `warehouseId`, `lines[0].articleId`); reactivate it or change the draft. "
             + "`PARTNER_ROLE_MISSING`: the supplier no longer has `isSupplier` (`errors` names `supplierId`). "
-            + "`QUANTITY_NOT_CONVERTIBLE`: with the current factor a line converts to zero or to more than 999999999.999999 (`errors` names `lines[i].quantity`); correct the draft or the factor.",
+            + "`QUANTITY_NOT_CONVERTIBLE`: with the current factor a line converts to zero or to more than 999999999.999999 (`errors` names `lines[i].quantity`); correct the draft or the factor. "
+            + DateRules14 + "`REFERENCE_INACTIVE` at confirmation is the rule `posting.activeMastersRequired` (default true). " + RulesNamed,
             Input(["id"], IdOf("draft purchase order to confirm")),
             (services, input, ct) => services.GetRequiredService<PurchaseOrderOperations>().ConfirmAsync(input.Id, ct)),
 
@@ -992,14 +1004,14 @@ public static class ToolCatalog
             + "Only stock articles can be ordered. The customer must be a partner with `isCustomer` = true. " + OrderPartnerRule(Sales) + " "
             + "A draft is an offer: it has prices and a total, no number, reserves nothing and cannot be delivered until confirmed with `sales_order_confirm`. "
             + "Without `warehouseId` the order is created on the tenant's default warehouse; the result's `warehouse` shows which warehouse was taken. "
-            + Validation + " " + OrderReferences(Sales),
+            + Validation + " " + OrderReferences(Sales) + " " + DocumentSaveRules14,
             Input(["orderDate", "lines"], OrderFields(Sales, update: false)),
             (services, input, ct) => services.GetRequiredService<SalesOrderOperations>().CreateAsync(input, ct)),
 
         XerpTool.WithId<ReplaceSalesOrderInput, SalesOrderDto>("sales_order_update", ToolKind.Update,
             "Replaces the dates, customer, warehouse, reference, note and all lines of a draft sales order; every argument is required (`requestedDate`, `customerId`, `reference` and `note` may be null). "
             + OrderPartnerRule(Sales) + " "
-            + Validation + " `NOT_FOUND`: no such order in this tenant. " + OrderConfirmed(Sales) + " " + OrderReferences(Sales),
+            + Validation + " `NOT_FOUND`: no such order in this tenant. " + OrderConfirmed(Sales) + " " + OrderReferences(Sales) + " " + DocumentSaveRules14,
             Input(["id", "orderDate", "requestedDate", "customerId", "warehouseId", "reference", "note", "lines"],
                 [IdOf("draft sales order to replace"), .. OrderFields(Sales, update: true)]),
             (services, id, input, ct) => services.GetRequiredService<SalesOrderOperations>().ReplaceAsync(id, input, ct)),
@@ -1018,7 +1030,8 @@ public static class ToolCatalog
             + "`NOT_FOUND`: no such order in this tenant. " + OrderConfirmed(Sales) + " "
             + "`REFERENCE_INACTIVE`: the customer, the warehouse or an article of the order is inactive (`errors` says which: `customerId`, `warehouseId`, `lines[0].articleId`); reactivate it or change the draft. "
             + "`PARTNER_ROLE_MISSING`: the customer no longer has `isCustomer` (`errors` names `customerId`). "
-            + "`QUANTITY_NOT_CONVERTIBLE`: with the current factor a line converts to zero or to more than 999999999.999999 (`errors` names `lines[i].quantity`); correct the draft or the factor.",
+            + "`QUANTITY_NOT_CONVERTIBLE`: with the current factor a line converts to zero or to more than 999999999.999999 (`errors` names `lines[i].quantity`); correct the draft or the factor. "
+            + DateRules14 + "`REFERENCE_INACTIVE` at confirmation is the rule `posting.activeMastersRequired` (default true). " + RulesNamed,
             Input(["id"], IdOf("draft sales order to confirm")),
             (services, input, ct) => services.GetRequiredService<SalesOrderOperations>().ConfirmAsync(input.Id, ct)),
 

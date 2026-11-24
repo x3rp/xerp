@@ -275,6 +275,117 @@ public static class RuleRegistry
         + "When true, any amount is recorded and the invoice is simply paid.",
         Default: false);
 
+    public static readonly RuleDefinition StockReceiptPartnerRequired = new(
+        "stock.receiptPartnerRequired",
+        "Partner required on a receipt that is not linked to an order",
+        "Judges creating and replacing a receipt that is not linked to a purchase order (stock_document_create, stock_document_update). "
+        + "When true, such a receipt without a partner (partnerId omitted or null) is refused with VALIDATION_FAILED, key partnerId. "
+        + "When false, a receipt may be saved without a partner. A receipt linked to an order always has the order's supplier, which may be none. "
+        + "Receipts that already exist are not judged again: a draft without a partner posts as it is; only its next replace must name one.",
+        Default: false);
+
+    public static readonly RuleDefinition StockIssuePartnerRequired = new(
+        "stock.issuePartnerRequired",
+        "Partner required on an issue that is not linked to an order",
+        "Judges creating and replacing an issue that is not linked to a sales order (stock_document_create, stock_document_update). "
+        + "When true, such an issue without a partner (partnerId omitted or null) is refused with VALIDATION_FAILED, key partnerId. "
+        + "When false, an issue may be saved without a partner. A delivery linked to an order always has the order's customer, which may be none. "
+        + "Issues that already exist are not judged again: a draft without a partner posts as it is; only its next replace must name one.",
+        Default: false);
+
+    public static readonly RuleDefinition StockPartnerRoleRequired = new(
+        "stock.partnerRoleRequired",
+        "The partner of a receipt must be a supplier, of an issue a customer",
+        "Judges saving and posting a receipt or an issue that is not linked to an order and names a partner (stock_document_create, stock_document_update, stock_document_post). "
+        + "When true, a receipt whose partner is not a supplier, or an issue whose partner is not a customer, is refused with PARTNER_ROLE_MISSING, key partnerId. "
+        + "When false, any existing partner may be named, whatever its roles. Existence and activity of the partner are checked either way. "
+        + "Posted documents keep their partner.",
+        Default: true);
+
+    public static readonly RuleDefinition DocumentPastDateAllowed = new(
+        "document.pastDateAllowed",
+        "A document or order may be dated before today",
+        "Judges posting a stock document (stock_document_post), confirming a purchase or sales order (purchase_order_confirm, sales_order_confirm) and the date given to a reversal (stock_document_reverse). Drafts may be saved with any date. "
+        + "When false, a document or order dated before today is refused with DATE_NOT_ALLOWED (key documentDate or orderDate); a reversal dated before today is refused with VALIDATION_FAILED, key documentDate. "
+        + "Today is lenient: a date that is today's date anywhere in the world (UTC-12 to UTC+14) is never refused. "
+        + "When true, any past date is accepted. Posted documents and confirmed orders are not judged again.",
+        Default: true);
+
+    public static readonly RuleDefinition DocumentFutureDateAllowed = new(
+        "document.futureDateAllowed",
+        "A document or order may be dated after today",
+        "Judges posting a stock document (stock_document_post), confirming a purchase or sales order (purchase_order_confirm, sales_order_confirm) and the date given to a reversal (stock_document_reverse). Drafts may be saved with any date. "
+        + "When false, a document or order dated after today is refused with DATE_NOT_ALLOWED (key documentDate or orderDate); a reversal dated after today is refused with VALIDATION_FAILED, key documentDate. "
+        + "Today is lenient: a date that is today's date anywhere in the world (UTC-12 to UTC+14) is never refused. expectedDate and requestedDate are never judged. "
+        + "When true, any future date is accepted. Posted documents and confirmed orders are not judged again.",
+        Default: true);
+
+    public static readonly RuleDefinition StockReversalBeforeOriginalAllowed = new(
+        "stock.reversalBeforeOriginalAllowed",
+        "A reversal may be dated before its original",
+        "Judges reversing a stock document (stock_document_reverse). "
+        + "When false, a reversal whose documentDate is before the date of the document it reverses is refused with VALIDATION_FAILED, key documentDate. "
+        + "When true, the reversal may carry any date that document.pastDateAllowed and document.futureDateAllowed allow. Reversals already made are not changed.",
+        Default: false);
+
+    public static readonly RuleDefinition DocumentReferenceRequired = new(
+        "document.referenceRequired",
+        "Reference required on a document or order",
+        "Judges creating and replacing stock documents and purchase and sales orders (stock_document_create, stock_document_update, purchase_order_create, purchase_order_update, sales_order_create, sales_order_update). "
+        + "When true, a document or order without a reference (omitted, null or blank) is refused with VALIDATION_FAILED, key reference. "
+        + "When false, the reference is optional. Existing drafts without one still post and confirm; only their next replace must give one. A reversal is never judged.",
+        Default: false);
+
+    public static readonly RuleDefinition DocumentRepeatedArticleAllowed = new(
+        "document.repeatedArticleAllowed",
+        "The same article may be on several lines",
+        "Judges creating and replacing receipts, issues, transfers and purchase and sales orders (stock_document_create, stock_document_update, purchase_order_create, purchase_order_update, sales_order_create, sales_order_update). "
+        + "When false, a document or order with the same articleId on two or more lines is refused with VALIDATION_FAILED, key lines[i].articleId for every such line; add the quantities up on one line. "
+        + "When true, an article may repeat. A stock count never allows repeats, whatever the value. Existing drafts with repeats still post and confirm.",
+        Default: true);
+
+    public static readonly RuleDefinition DocumentWarehouseRequired = new(
+        "document.warehouseRequired",
+        "The warehouse must be named on every new document",
+        "Judges creating stock documents and purchase and sales orders (stock_document_create, purchase_order_create, sales_order_create). "
+        + "When true, a create without warehouseId (omitted or null) is refused with VALIDATION_FAILED, key warehouseId - also for a document linked to an order. "
+        + "When false, an omitted warehouse is the order's warehouse for a linked document and otherwise the company's default warehouse. "
+        + "A transfer and every replace always name the warehouse, whatever the value.",
+        Default: false);
+
+    public static readonly RuleDefinition ReferencesInactiveAssignable = new(
+        "references.inactiveAssignable",
+        "An inactive record may be newly referenced",
+        "Judges creating and replacing stock documents, purchase and sales orders, articles (baseUnitId) and article units (unitId). "
+        + "When false, naming an inactive unit, article, partner or warehouse that the record does not already have is refused with REFERENCE_INACTIVE. "
+        + "When true, inactive records may be named; posting and confirming are judged by posting.activeMastersRequired. A record that does not exist is always REFERENCE_NOT_FOUND.",
+        Default: false);
+
+    public static readonly RuleDefinition PostingActiveMastersRequired = new(
+        "posting.activeMastersRequired",
+        "Posting and confirmation need active warehouse, articles and partner",
+        "Judges posting a stock document (stock_document_post) and confirming a purchase or sales order (purchase_order_confirm, sales_order_confirm). "
+        + "When true, a document or order whose warehouse, partner or an article is inactive is refused with REFERENCE_INACTIVE; reactivate the master or change the draft. "
+        + "When false, it is posted or confirmed although a master it names is inactive. Posted documents and confirmed orders are not judged again.",
+        Default: true);
+
+    public static readonly RuleDefinition StockReversalActiveMastersRequired = new(
+        "stock.reversalActiveMastersRequired",
+        "A reversal needs active warehouse, articles and partner",
+        "Judges reversing a stock document (stock_document_reverse). "
+        + "When true, a reversal is refused with REFERENCE_INACTIVE while the original's warehouse, destination, partner (of a document not linked to an order) or an article is inactive; the original stays posted and can be reversed once the master is active again. "
+        + "When false, a document is reversed whatever the state of its masters.",
+        Default: false);
+
+    public static readonly RuleDefinition StockOutdatedCountAllowed = new(
+        "stock.outdatedCountAllowed",
+        "A count whose book quantity is no longer current may be posted",
+        "Judges posting a stock count (stock_document_post). "
+        + "When false, a count is refused with COUNT_OUTDATED when stock of a counted article moved after the count was saved; save it again and post. "
+        + "When true, the count is posted against the stock at the moment of posting: each line's bookQuantity becomes that stock and the difference is taken from it, so afterwards stock equals what was counted. "
+        + "Posted counts are not changed.",
+        Default: false);
+
     /// <summary>The four masters, each with its rules.</summary>
     public static IReadOnlyList<MasterRuleSet> Masters { get; } = [Uom, Article, Partner, Warehouse];
 
@@ -292,6 +403,9 @@ public static class RuleRegistry
             ProductionComponentsMayDifferFromBom, ProductionConsumptionMayDifferFromPlan, ProductionProducedQuantityMayDifferFromPlan,
             UsersLockAfterFailedLogins, UsersShortPasswordsAllowed,
             InvoiceCustomerRequired, InvoiceBackdatingAllowed, InvoiceIssueMovesStock, InvoiceOverpaymentAllowed,
+            StockReceiptPartnerRequired, StockIssuePartnerRequired, StockPartnerRoleRequired, DocumentPastDateAllowed, DocumentFutureDateAllowed,
+            StockReversalBeforeOriginalAllowed, DocumentReferenceRequired, DocumentRepeatedArticleAllowed, DocumentWarehouseRequired,
+            ReferencesInactiveAssignable, PostingActiveMastersRequired, StockReversalActiveMastersRequired, StockOutdatedCountAllowed,
         ])
         .OrderBy(r => r.Key, StringComparer.Ordinal)
         .ToList();

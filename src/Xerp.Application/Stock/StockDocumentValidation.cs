@@ -5,6 +5,7 @@ using Xerp.Application.Warehouses;
 using Xerp.Domain.Common;
 using Xerp.Domain.Inventory;
 using Xerp.Domain.Orders;
+using Xerp.Domain.Rules;
 
 namespace Xerp.Application.Stock;
 
@@ -30,8 +31,10 @@ public static class StockDocumentValidation
 
     public static string LineKey(int index, string field) => $"lines[{index}].{field}";
 
-    public static Result<NewStockDocumentValues> Create(CreateStockDocumentInput input)
+    /// <param name="rules">Spec 014: the rules of saving, read once for the request; null is a tenant that set none.</param>
+    public static Result<NewStockDocumentValues> Create(CreateStockDocumentInput input, DocumentSaveRules? rules = null)
     {
+        rules ??= DocumentSaveRules.Defaults;
         var errors = new ValidationErrors();
         if (!StockDocumentTypeNames.TryParse(input.Type, out var type))
             errors.Add("type", string.IsNullOrEmpty(input.Type) ? "type is required. " + TypeMessage : TypeMessage);
@@ -59,11 +62,20 @@ public static class StockDocumentValidation
         // except for a transfer, which names both of its warehouses.
         var values = Values(
             errors, type, linked, input.DocumentDate, input.WarehouseId, input.ToWarehouseId, input.Reference, input.Note, input.Lines,
-            warehouseOptional: errors.Has("type") || type != StockDocumentType.Transfer, partnerId: input.PartnerId);
+            warehouseOptional: errors.Has("type") || type != StockDocumentType.Transfer, partnerId: input.PartnerId, rules: rules);
         // Spec 011a, R1: only a known type can say that it has no partner. Omitted and null are equal on a create (R3).
         if (!errors.Has("type") && !errors.Has(PartnerField)
             && StockPartnerChecks.OfType(type, values.PartnerId, given: true) is { } partnerMessage)
             errors.Add(PartnerField, partnerMessage);
+        // Spec 014, R6, R8: a partner on an unlinked receipt or issue, when the tenant requires one.
+        if (!errors.Has("type") && !linked && !errors.Has(PartnerField) && values.PartnerId is null
+            && rules.PartnerRequired(type) is { Value: true } partnerRule)
+            errors.Add(PartnerField, PartnerRequiredMessage(type, partnerRule.Rule), partnerRule.Rule, true);
+        // Spec 014, R21: the warehouse named on every new document; a transfer names it anyway (an invariant).
+        if (rules.WarehouseRequired && input.WarehouseId is null && !errors.Has("type") && type != StockDocumentType.Transfer)
+            errors.Add(DefaultWarehouseRules.WarehouseField,
+                $"{DefaultWarehouseRules.WarehouseField} is required: this company's rule {RuleRegistry.DocumentWarehouseRequired.Key} is true, so a new document does not default to a warehouse.",
+                RuleRegistry.DocumentWarehouseRequired, true);
         var warehouseOmitted = input.WarehouseId is null;
         // Only for a known type can the destination be judged (spec 006, R2, R3).
         if (!errors.Has("type") && !errors.Has(ToWarehouseField)
@@ -74,8 +86,9 @@ public static class StockDocumentValidation
         return new NewStockDocumentValues(type, values, link, warehouseOmitted);
     }
 
-    public static Result<StockDocumentValues> Replace(ReplaceStockDocumentInput input)
+    public static Result<StockDocumentValues> Replace(ReplaceStockDocumentInput input, DocumentSaveRules? rules = null)
     {
+        rules ??= DocumentSaveRules.Defaults;
         var errors = new ValidationErrors();
         foreach (var property in new[] { nameof(input.Reference), nameof(input.Note) })
         {
@@ -89,7 +102,7 @@ public static class StockDocumentValidation
         // waits for the stored document: OfType.
         var values = Values(
             errors, type: null, linked: null, input.DocumentDate, input.WarehouseId, input.ToWarehouseId, input.Reference, input.Note, input.Lines,
-            partnerId: input.PartnerId);
+            partnerId: input.PartnerId, rules: rules);
         if (errors.Any)
             return errors.ToError();
         // Whether partnerId had to be sent depends on the type too (spec 011a, R3): OfType.
@@ -107,13 +120,17 @@ public static class StockDocumentValidation
     /// a receipt or an issue whose replace left the property out.
     /// </summary>
     /// <param name="linked">Whether the stored document is linked to an order.</param>
-    public static AppError? OfType(StockDocumentType type, StockDocumentValues values, bool linked = false)
+    /// <param name="rules">Spec 014: the rules of saving (R6, R19); null is a tenant that set none.</param>
+    public static AppError? OfType(StockDocumentType type, StockDocumentValues values, bool linked = false, DocumentSaveRules? rules = null)
     {
+        rules ??= DocumentSaveRules.Defaults;
         var errors = new ValidationErrors();
         if (DestinationMessage(type, values.WarehouseId, values.ToWarehouseId) is { } message)
             errors.Add(ToWarehouseField, message);
         if (StockPartnerChecks.OfType(type, values.PartnerId, values.PartnerGiven) is { } partnerMessage)
             errors.Add(PartnerField, partnerMessage);
+        else if (!linked && values.PartnerGiven && values.PartnerId is null && rules.PartnerRequired(type) is { Value: true } partnerRule)
+            errors.Add(PartnerField, PartnerRequiredMessage(type, partnerRule.Rule), partnerRule.Rule, true);
         for (var i = 0; i < values.Lines.Count; i++)
         {
             if (!QuantityRules.IsValidOn(type, values.Lines[i].Quantity))
@@ -121,7 +138,7 @@ public static class StockDocumentValidation
             if (OrderLineMessage(linked, values.Lines[i].OrderLineNo) is { } orderLineMessage)
                 errors.Add(LineKey(i, OrderLineField), orderLineMessage);
         }
-        Repeats(errors, type, values.Lines.Select(l => (Guid?)l.ArticleId).ToList());
+        Repeats(errors, type, values.Lines.Select(l => (Guid?)l.ArticleId).ToList(), rules.RepeatedArticleAllowed);
         return errors.Any ? errors.ToError() : null;
     }
 
@@ -142,15 +159,42 @@ public static class StockDocumentValidation
         return errors.Any ? errors.ToError() : null;
     }
 
-    // Spec 008, R3: each article at most once on a count, whatever the unit; every line of a repeated article is named.
-    private static void Repeats(ValidationErrors errors, StockDocumentType type, IReadOnlyList<Guid?> articleIds)
+    // Spec 008, R3: each article at most once on a count, whatever the unit; every line of a repeated article is
+    // named. Spec 014, R19, R20: on any other type only when the tenant forbids repeats - a count always does.
+    private static void Repeats(ValidationErrors errors, StockDocumentType type, IReadOnlyList<Guid?> articleIds, bool repeatedArticleAllowed)
     {
-        if (type != StockDocumentType.Count)
+        if (type == StockDocumentType.Count)
+        {
+            foreach (var i in CountRules.RepeatedLines(articleIds))
+                errors.Add(LineKey(i, "articleId"),
+                    "A count names each article at most once: this article is on more than one line. Add the quantities up, in one unit, on a single line.");
             return;
-        foreach (var i in CountRules.RepeatedLines(articleIds))
-            errors.Add(LineKey(i, "articleId"),
-                "A count names each article at most once: this article is on more than one line. Add the quantities up, in one unit, on a single line.");
+        }
+        if (!repeatedArticleAllowed)
+            RepeatedByRule(errors, articleIds, i => LineKey(i, "articleId"));
     }
+
+    /// <summary>Spec 014, R19: every line of an article that is on more than one line, naming <c>document.repeatedArticleAllowed</c>.</summary>
+    public static void RepeatedByRule(ValidationErrors errors, IReadOnlyList<Guid?> articleIds, Func<int, string> key)
+    {
+        foreach (var i in CountRules.RepeatedLines(articleIds))
+            if (!errors.Has(key(i)))
+                errors.Add(key(i),
+                    $"This article is on more than one line and this company's rule {RuleRegistry.DocumentRepeatedArticleAllowed.Key} is false. Add the quantities up on a single line.",
+                    RuleRegistry.DocumentRepeatedArticleAllowed, false);
+    }
+
+    /// <summary>Spec 014, R18: a reference on every document and order, when the tenant requires one.</summary>
+    public static void ReferenceRequired(ValidationErrors errors, string? normalizedReference, bool referenceRequired)
+    {
+        if (referenceRequired && normalizedReference is null && !errors.Has("reference"))
+            errors.Add("reference",
+                $"reference is required: this company's rule {RuleRegistry.DocumentReferenceRequired.Key} is true. Give the reference of the document, for example the supplier's delivery note number.",
+                RuleRegistry.DocumentReferenceRequired, true);
+    }
+
+    private static string PartnerRequiredMessage(StockDocumentType type, RuleDefinition rule) =>
+        $"partnerId is required: this company's rule {rule.Key} is true, so {(type == StockDocumentType.Issue ? "an issue names its customer" : "a receipt names its supplier")}.";
 
     /// <summary>
     /// Spec 009, R20: on a linked document every line names an order line, a JSON integer of 1 or more; on an
@@ -233,8 +277,9 @@ public static class StockDocumentValidation
     /// <param name="partnerId">Only the form here (spec 011a, R3): a UUID or null. Whether the type can have a partner is decided by <see cref="StockPartnerChecks.OfType"/>.</param>
     private static StockDocumentValues Values(
         ValidationErrors errors, StockDocumentType? type, bool? linked, string? documentDate, string? warehouseId, string? toWarehouseId, string? reference, string? note,
-        IReadOnlyList<StockLineInput?>? lines, bool warehouseOptional = false, string? partnerId = null)
+        IReadOnlyList<StockLineInput?>? lines, bool warehouseOptional = false, string? partnerId = null, DocumentSaveRules? rules = null)
     {
+        rules ??= DocumentSaveRules.Defaults;
         var date = Date(errors, documentDate);
         var warehouse = DefaultWarehouseRules.Named(errors, warehouseId, warehouseOptional) ?? default;
         // Only the form here: whether a destination is needed depends on the type (spec 006, R2, R3).
@@ -254,6 +299,7 @@ public static class StockDocumentValidation
 
         if (!OptionalTextRules.TryNormalize(reference, StockDocument.ReferenceMaxLength, out var normalizedReference))
             errors.Add("reference", $"reference must be at most {StockDocument.ReferenceMaxLength} characters on a single line, without control characters.");
+        ReferenceRequired(errors, normalizedReference, rules.ReferenceRequired);
         var normalizedNote = Note(errors, note);
 
         var lineValues = new List<StockLineRequest>();
@@ -292,7 +338,7 @@ public static class StockDocumentValidation
                     lineValues.Add(new StockLineRequest(article, quantity, unit, line.OrderLineNo));
             }
             if (type is { } known)
-                Repeats(errors, known, articleIds);
+                Repeats(errors, known, articleIds, rules.RepeatedArticleAllowed);
         }
         return new StockDocumentValues(date, warehouse, toWarehouse, normalizedReference, normalizedNote, lineValues, partner);
     }

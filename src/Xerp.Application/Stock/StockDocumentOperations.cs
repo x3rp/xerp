@@ -118,7 +118,9 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
 
     public async Task<Result<StockDocumentDto>> CreateAsync(CreateStockDocumentInput input, CancellationToken cancellationToken = default)
     {
-        var validated = StockDocumentValidation.Create(input);
+        // Spec 014, R4: create and replace read the rules once and are judged by that one set.
+        var saveRules = DocumentSaveRules.From(await rules.ReadAsync(cancellationToken));
+        var validated = StockDocumentValidation.Create(input, saveRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var (type, values, link) = (validated.Value.Type, validated.Value.Values, validated.Value.Link);
@@ -138,7 +140,7 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
                     values = values with { WarehouseId = warehouseId.Value };
                     warehouseOmitted = false;
                 }
-                var references = await CheckReferencesAsync(type, values, stored: null, link, ct);
+                var references = await CheckReferencesAsync(type, values, stored: null, link, saveRules, ct);
                 if (!references.IsSuccess)
                     return references.Error;
                 var (lines, partnerId) = references.Value;
@@ -159,13 +161,14 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
         catch (ForeignKeyViolationException ex) when (!ex.BlockedDelete)
         {
             // A master was deleted between the check and the write: the foreign key is the authority.
-            return (await CheckReferencesAsync(type, values, stored: null, link, cancellationToken)).Error ?? throw new InvalidOperationException("A reference was rejected by the database but is present.", ex);
+            return (await CheckReferencesAsync(type, values, stored: null, link, saveRules, cancellationToken)).Error ?? throw new InvalidOperationException("A reference was rejected by the database but is present.", ex);
         }
     }
 
     public async Task<Result<StockDocumentDto>> ReplaceAsync(Guid id, ReplaceStockDocumentInput input, CancellationToken cancellationToken = default)
     {
-        var validated = StockDocumentValidation.Replace(input);
+        var saveRules = DocumentSaveRules.From(await rules.ReadAsync(cancellationToken));
+        var validated = StockDocumentValidation.Replace(input, saveRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
@@ -184,12 +187,12 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
                 if (document is null)
                     return StockDocumentValidation.WithoutDocument(values) ?? NotFound();
                 (storedType, storedLink) = (document.Type, document.Link);
-                if (StockDocumentValidation.OfType(document.Type, values, document.IsLinked) is { } typeError)
+                if (StockDocumentValidation.OfType(document.Type, values, document.IsLinked, saveRules) is { } typeError)
                     return typeError;
                 if (!document.IsDraft)
                     return NotADraft(document, "replaced");
                 // Spec 009, R19: the link is the stored one; the order must still be open (R31).
-                var references = await CheckReferencesAsync(document.Type, values, document, document.Link, ct);
+                var references = await CheckReferencesAsync(document.Type, values, document, document.Link, saveRules, ct);
                 if (!references.IsSuccess)
                     return references.Error;
                 var (lines, partnerId) = references.Value;
@@ -205,7 +208,7 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
         }
         catch (ForeignKeyViolationException ex) when (!ex.BlockedDelete)
         {
-            return (await CheckReferencesAsync(storedType, values, stored: null, storedLink, cancellationToken)).Error ?? throw new InvalidOperationException("A reference was rejected by the database but is present.", ex);
+            return (await CheckReferencesAsync(storedType, values, stored: null, storedLink, saveRules, cancellationToken)).Error ?? throw new InvalidOperationException("A reference was rejected by the database but is present.", ex);
         }
     }
 
@@ -255,6 +258,10 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
                 return NotFound();
             if (!document.IsDraft)
                 return NotADraft(document, "posted again");
+            // Spec 014, R14: exists -> is a draft -> date -> the rest. Only a posting asked for by a caller is
+            // judged; the documents a work order or an invoice posts follow the dates of those.
+            if (DocumentRuleChecks.Date(document.DocumentDate, clock.UtcNow, tenantRules, DocumentRuleChecks.DocumentDateField, "stock document") is { } dateError)
+                return dateError;
             if (await PostWithinLockAsync(document, tenantRules, ct) is { } refused)
                 return refused;
             await db.SaveChangesAsync(ct);
@@ -284,9 +291,12 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
                 if (!partner.IsActive)
                     inactiveHeader.Add((PartnerField, partnerId));
             }
-            if (StockLineChecks.ActiveForPosting(inactiveHeader, lines, facts.Articles) is { } inactive)
+            // Spec 014, R24: the tenant may post although a master is inactive.
+            if (tenantRules[RuleRegistry.PostingActiveMastersRequired]
+                && StockLineChecks.ActiveForPosting(inactiveHeader, lines, facts.Articles) is { } inactive)
                 return inactive;
-            if (partner is not null && StockPartnerChecks.Role(document.Type, document.PartnerId!.Value, partner.HasRole) is { } roleMissing)
+            if (partner is not null
+                && StockPartnerChecks.Role(document.Type, document.PartnerId!.Value, partner.HasRole, tenantRules[RuleRegistry.StockPartnerRoleRequired]) is { } roleMissing)
                 return roleMissing;
 
             // Spec 007, R17, R18: a draft follows the current factor, so a line that converted when it was
@@ -300,8 +310,12 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
             if (document.Type == StockDocumentType.Count)
             {
                 var books = document.Lines.Select(l => new StockLineValues(l.ArticleId, l.BookQuantity!.Value)).ToList();
-                if (StockLineChecks.Current(books, await OnHandInAsync(document.WarehouseId, lines.Select(l => l.ArticleId), ct)) is { } outdated)
-                    return outdated;
+                var onHandNow = await OnHandInAsync(document.WarehouseId, lines.Select(l => l.ArticleId), ct);
+                // Spec 014, R28: the tenant may post an outdated count against the stock of this moment.
+                if (tenantRules[RuleRegistry.StockOutdatedCountAllowed])
+                    document.RetakeBookQuantities(lines.Select(l => onHandNow.GetValueOrDefault(l.ArticleId)).ToList());
+                else if (StockLineChecks.Current(books, onHandNow) is { } outdated)
+                    return outdated.RefusedBy(RuleRegistry.StockOutdatedCountAllowed, false);
             }
 
             // Spec 009, R24, R26; spec 010, R7: the order is read here, under the tenant's lock that confirm,
@@ -390,7 +404,7 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
             if (await db.Invoices.Where(v => v.StockDocumentId == id).Select(v => v.Number).FirstOrDefaultAsync(ct) is { } invoiceNumber)
                 return AppError.InvalidState(
                     $"The stock document was posted by the issue of invoice {invoiceNumber} and is reversed only with it: cancel the invoice (POST /invoices/{{id}}/cancel).");
-            var reversal = await ReverseWithinLockAsync(original, values, tenantRules, ct);
+            var reversal = await ReverseWithinLockAsync(original, values, tenantRules, ct, judgeToday: true);
             if (!reversal.IsSuccess)
                 return reversal.Error;
             await db.SaveChangesAsync(ct);
@@ -404,13 +418,18 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
     /// tenant's lock and saves once; on an error it saves nothing.
     /// </summary>
     internal async Task<Result<StockDocument>> ReverseWithinLockAsync(
-        StockDocument original, StockReversalValues values, TenantRules tenantRules, CancellationToken ct)
+        StockDocument original, StockReversalValues values, TenantRules tenantRules, CancellationToken ct, bool judgeToday = false)
     {
         {
             if (!original.CanBeReversed)
                 return NotReversible(original);
-            if (StockDocumentValidation.ReversalDate(values.DocumentDate, original.DocumentDate) is { } dateError)
+            // Spec 014, R15, R17: the date stage answers once for every date rule that refuses. Only a reversal a
+            // caller asks for is judged against today; one a work order or an invoice makes follows their dates.
+            if (DocumentRuleChecks.ReversalDate(values.DocumentDate, original.DocumentDate, clock.UtcNow, tenantRules, judgeToday) is { } dateError)
                 return dateError;
+            // Spec 014, R25: the tenant may require active masters to reverse.
+            if (tenantRules[RuleRegistry.StockReversalActiveMastersRequired] && await InactiveForReversalAsync(original, ct) is { } inactive)
+                return inactive;
 
             // R14, R15: the reversing entries are the original's own entries, negated.
             var entries = await db.StockLedgerEntries.Where(e => e.DocumentId == original.Id).ToListAsync(ct);
@@ -468,6 +487,24 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
         var reservedBefore = reservedStockProtected ? await OrderReads.ReservedAsync(db, lowered, cancellationToken) : [];
         var reservedAfter = reservedBefore.ToDictionary(r => r.Key, r => r.Value - released.GetValueOrDefault(r.Key));
         return StockLineChecks.Reservation(lines, movements, onHand, reservedBefore, reservedAfter, reservedStockProtected, reversal);
+    }
+
+    /// <summary>
+    /// Spec 014, R25: REFERENCE_INACTIVE naming <c>stock.reversalActiveMastersRequired</c> when the original's
+    /// warehouse, destination, partner (of an unlinked document) or an article is inactive - header keys
+    /// together and alone first, then lines.
+    /// </summary>
+    private async Task<AppError?> InactiveForReversalAsync(StockDocument original, CancellationToken ct)
+    {
+        var inactiveHeader = await InactiveWarehousesAsync(original, ct);
+        if (!original.IsLinked && original.PartnerId is { } partnerId
+            && !await db.Partners.Where(p => p.Id == partnerId).Select(p => p.IsActive).SingleAsync(ct))
+            inactiveHeader.Add((PartnerField, partnerId));
+        var lines = original.Lines.Select(l => l.Entry).ToList();
+        var facts = await StockReads.LineFactsAsync(db, lines.Select(l => l.ArticleId), [], ct);
+        return StockLineChecks.ActiveMasters(inactiveHeader, lines, facts.Articles,
+                "A warehouse, the partner or an article of the document is inactive, and this company's rule stock.reversalActiveMastersRequired is true; reactivate it, then reverse again. Nothing was reversed.")
+            ?.RefusedBy(RuleRegistry.StockReversalActiveMastersRequired, true);
     }
 
     /// <summary>The inactive warehouses of a document with their error keys: source, then destination.</summary>
@@ -549,7 +586,8 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
     /// </para>
     /// </summary>
     private async Task<Result<CheckedReferences>> CheckReferencesAsync(
-        StockDocumentType type, StockDocumentValues values, StockDocument? stored, OrderLink? link, CancellationToken cancellationToken)
+        StockDocumentType type, StockDocumentValues values, StockDocument? stored, OrderLink? link, DocumentSaveRules saveRules,
+        CancellationToken cancellationToken)
     {
         var warehouseIsActive = await db.Warehouses.Where(w => w.Id == values.WarehouseId)
             .Select(w => (bool?)w.IsActive).SingleOrDefaultAsync(cancellationToken);
@@ -558,19 +596,19 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
         {
             var partner = await PartnerChecks.State(db, partnerId, StockPartnerChecks.Side(type).Side).SingleOrDefaultAsync(cancellationToken);
             var named = new HeaderReference(PartnerField, partnerId, partner?.IsActive, stored?.PartnerId == partnerId);
-            if (StockPartnerChecks.HeaderReferences(warehouse, named) is { } headerError)
+            if (StockPartnerChecks.HeaderReferences(saveRules.InactiveAssignable, warehouse, named) is { } headerError)
                 return headerError;
-            if (StockPartnerChecks.Role(type, partnerId, partner!.HasRole) is { } roleMissing)
+            if (StockPartnerChecks.Role(type, partnerId, partner!.HasRole, saveRules.PartnerRoleRequired) is { } roleMissing)
                 return roleMissing;
         }
-        else if (StockPartnerChecks.HeaderReferences(warehouse) is { } warehouseError)
+        else if (StockPartnerChecks.HeaderReferences(saveRules.InactiveAssignable, warehouse) is { } warehouseError)
             return warehouseError;
 
         if (values.ToWarehouseId is { } destination)
         {
             var destinationError = await ReferenceCheck.ValidateAsync(
                 db.Warehouses.Where(w => w.Id == destination).Select(w => w.IsActive),
-                ToWarehouseField, destination, alreadyAssigned: stored?.ToWarehouseId == destination, cancellationToken);
+                ToWarehouseField, destination, alreadyAssigned: stored?.ToWarehouseId == destination, cancellationToken, saveRules.InactiveAssignable);
             if (destinationError is not null)
                 return destinationError;
         }
@@ -587,7 +625,8 @@ public sealed class StockDocumentOperations(IXerpDb db, ITenantContext context, 
         var unitsOnDocument = stored?.Lines.Select(l => l.UnitId).ToHashSet() ?? [];
         var facts = await StockReads.LineFactsAsync(
             db, values.Lines.Select(l => l.ArticleId), values.Lines.Where(l => l.UnitId is not null).Select(l => l.UnitId!.Value), cancellationToken);
-        var lines = StockLineChecks.References(values.Lines, facts, articlesOnDocument, unitsOnDocument, type, order?.LineArticles.Keys.ToList());
+        var lines = StockLineChecks.References(
+            values.Lines, facts, articlesOnDocument, unitsOnDocument, type, order?.LineArticles.Keys.ToList(), saveRules.InactiveAssignable);
         if (!lines.IsSuccess)
             return lines.Error;
         if (order is not null && OrderLinkChecks.Agreement(values.WarehouseId, lines.Value, order, values.PartnerId) is { } mismatch)

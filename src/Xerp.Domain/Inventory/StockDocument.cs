@@ -343,6 +343,20 @@ public sealed class StockDocument : ITenantOwned
     /// a line in the base unit.
     /// </param>
     /// <exception cref="InvalidOperationException">The document is not a draft (R11), or a line does not convert (R15).</exception>
+    /// <summary>
+    /// Spec 014, R28: a draft count posted although its book quantities are outdated takes the stock of the
+    /// moment of posting as its book quantities, in line order; the differences then follow from them.
+    /// </summary>
+    public void RetakeBookQuantities(IReadOnlyList<decimal> bookQuantities)
+    {
+        if (Type != StockDocumentType.Count || !IsDraft)
+            throw new InvalidOperationException("Only a draft count has book quantities to retake.");
+        if (bookQuantities.Count != _lines.Count || bookQuantities.Any(b => !CountRules.IsValidBookQuantity(b)))
+            throw new ArgumentException("One valid book quantity per line is required.", nameof(bookQuantities));
+        foreach (var (line, book) in Lines.OrderBy(l => l.LineNo).Zip(bookQuantities))
+            line.SetBookQuantity(book);
+    }
+
     public IReadOnlyList<StockLedgerEntry> Post(string number, IReadOnlyList<decimal> factors, DateTime now, Guid actorKeyId)
     {
         EnsureDraft();
@@ -545,6 +559,8 @@ public sealed class StockDocumentLine : ITenantOwned
         SalesOrderId = link is { Side: OrderSide.Sales } ? link.Value.OrderId : null;
         OrderLineNo = entry.OrderLineNo;
     }
+
+    internal void SetBookQuantity(decimal bookQuantity) => BookQuantity = bookQuantity;
 
     internal void Freeze(decimal factor, decimal baseQuantity)
     {

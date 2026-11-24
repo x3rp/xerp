@@ -72,7 +72,7 @@ public static class StockLineChecks
     /// </param>
     public static Result<IReadOnlyList<StockLineEntry>> References(
         IReadOnlyList<StockLineRequest> lines, StockLineFacts facts, IReadOnlySet<Guid> articlesOnDocument, IReadOnlySet<Guid> unitsOnDocument,
-        StockDocumentType type, IReadOnlyCollection<int>? orderLines = null)
+        StockDocumentType type, IReadOnlyCollection<int>? orderLines = null, bool inactiveAssignable = false)
     {
         var articles = facts.Articles;
 
@@ -101,8 +101,10 @@ public static class StockLineChecks
             if (lines[i].UnitId is { } unit && unit != article.BaseUnitId && !facts.Units[unit] && !unitsOnDocument.Contains(unit))
                 inactive.Add(i, UnitField, $"The record with id '{unit}' is inactive.");
         }
-        if (inactive.Any)
-            return inactive.ToError(ErrorCodes.ReferenceInactive, "A line names an inactive article or unit of measure, which cannot be newly assigned.");
+        // Spec 014, R22: the tenant may allow inactive records to be named; the stage then never answers.
+        if (inactive.Any && !inactiveAssignable)
+            return inactive.ToError(ErrorCodes.ReferenceInactive, "A line names an inactive article or unit of measure, which cannot be newly assigned.")
+                .RefusedBy(Xerp.Domain.Rules.RuleRegistry.ReferencesInactiveAssignable, false);
 
         var notStocked = new LineErrors();
         for (var i = 0; i < lines.Count; i++)
@@ -176,7 +178,8 @@ public static class StockLineChecks
         IReadOnlyList<(string Field, Guid Id)> inactiveWarehouses,
         IReadOnlyList<StockLineEntry> lines, IReadOnlyDictionary<Guid, ArticleFacts> articles) =>
         ActiveMasters(inactiveWarehouses, lines, articles,
-            "A warehouse, the partner or an article of the document is inactive; reactivate it or change the draft, then post again. Nothing was posted.");
+            "A warehouse, the partner or an article of the document is inactive; reactivate it or change the draft, then post again. Nothing was posted.")
+            ?.RefusedBy(Xerp.Domain.Rules.RuleRegistry.PostingActiveMastersRequired, true);
 
     /// <summary>
     /// The rule behind <see cref="ActiveForPosting"/>, for any step that needs every master active (spec 005,

@@ -130,7 +130,9 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
 
     protected async Task<Result<TDto>> CreateAsync(OrderInput input, CancellationToken cancellationToken = default)
     {
-        var validated = Validate(input, await rules.ReadAsync(cancellationToken));
+        var tenantRules = await rules.ReadAsync(cancellationToken);
+        var saveRules = DocumentSaveRules.From(tenantRules);
+        var validated = Validate(input, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
@@ -147,7 +149,7 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
                         WarehouseId = DefaultWarehouseRules.ForNewDocument(null, null, await WarehouseReads.DefaultIdAsync(db, ct)),
                         WarehouseOmitted = false,
                     };
-                var lines = await CheckReferencesAsync(values, stored: null, ct);
+                var lines = await CheckReferencesAsync(values, stored: null, saveRules, ct);
                 if (!lines.IsSuccess)
                     return lines.Error;
 
@@ -161,14 +163,16 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
         catch (ForeignKeyViolationException ex) when (!ex.BlockedDelete)
         {
             // A master was deleted between the check and the write: the foreign key is the authority.
-            return (await CheckReferencesAsync(values, stored: null, cancellationToken)).Error
+            return (await CheckReferencesAsync(values, stored: null, saveRules, cancellationToken)).Error
                 ?? throw new InvalidOperationException("A reference was rejected by the database but is present.", ex);
         }
     }
 
     protected async Task<Result<TDto>> ReplaceAsync(Guid id, OrderInput input, CancellationToken cancellationToken = default)
     {
-        var validated = Validate(input, await rules.ReadAsync(cancellationToken));
+        var tenantRules = await rules.ReadAsync(cancellationToken);
+        var saveRules = DocumentSaveRules.From(tenantRules);
+        var validated = Validate(input, tenantRules);
         if (!validated.IsSuccess)
             return validated.Error;
         var values = validated.Value;
@@ -183,7 +187,7 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
                     return NotFound();
                 if (!order.IsDraft)
                     return NotADraft(order, "replaced");
-                var lines = await CheckReferencesAsync(values, order, ct);
+                var lines = await CheckReferencesAsync(values, order, saveRules, ct);
                 if (!lines.IsSuccess)
                     return lines.Error;
 
@@ -197,7 +201,7 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
         }
         catch (ForeignKeyViolationException ex) when (!ex.BlockedDelete)
         {
-            return (await CheckReferencesAsync(values, stored: null, cancellationToken)).Error
+            return (await CheckReferencesAsync(values, stored: null, saveRules, cancellationToken)).Error
                 ?? throw new InvalidOperationException("A reference was rejected by the database but is present.", ex);
         }
     }
@@ -229,11 +233,16 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
     public Task<Result<TDto>> ConfirmAsync(Guid id, CancellationToken cancellationToken = default) =>
         db.SerializedPerTenantAsync<Result<TDto>>(async ct =>
         {
+            // Spec 014, R4: one set of rules for the whole confirmation, read under the tenant's lock.
+            var tenantRules = await rules.ReadAsync(ct);
             var order = await Orders.Include(o => o.Lines).SingleOrDefaultAsync(o => o.Id == id, ct);
             if (order is null)
                 return NotFound();
             if (!order.IsDraft)
                 return NotADraft(order, "confirmed again");
+            // Spec 014, R14: exists -> is a draft -> date -> masters active -> the rest.
+            if (DocumentRuleChecks.Date(order.OrderDate, clock.UtcNow, tenantRules, "orderDate", kind.Name) is { } dateError)
+                return dateError;
 
             var partner = order.PartnerId is { } partnerId ? await PartnerFacts(partnerId).SingleAsync(ct) : null;
             var warehouseIsActive = await db.Warehouses.AsNoTracking()
@@ -250,9 +259,11 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
             // The factors are read here, under the tenant's lock: a conversion cannot be set or deleted between
             // this read and the save.
             var facts = await StockReads.LineFactsAsync(db, lines.Select(l => l.ArticleId), [], ct);
-            if (StockLineChecks.ActiveMasters(inactiveHeader, lines, facts.Articles,
+            // Spec 014, R24: the tenant may confirm although a master is inactive.
+            if (tenantRules[Xerp.Domain.Rules.RuleRegistry.PostingActiveMastersRequired]
+                && StockLineChecks.ActiveMasters(inactiveHeader, lines, facts.Articles,
                     $"The {kind.PartnerWord}, the warehouse or an article of the order is inactive; reactivate it or change the draft, then confirm again. Nothing was confirmed.") is { } inactive)
-                return inactive;
+                return inactive.RefusedBy(Xerp.Domain.Rules.RuleRegistry.PostingActiveMastersRequired, true);
             if (partner is { HasRole: false })
                 return RoleMissing(order.PartnerId!.Value);
 
@@ -306,22 +317,24 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
     /// asked for on every save. On success the lines to store, each with its unit. An order without a partner
     /// has no partner stage: whether it may be without one was decided by validation (spec 012, R34).
     /// </summary>
-    private async Task<Result<IReadOnlyList<OrderLineEntry>>> CheckReferencesAsync(OrderValues values, TOrder? stored, CancellationToken cancellationToken)
+    private async Task<Result<IReadOnlyList<OrderLineEntry>>> CheckReferencesAsync(
+        OrderValues values, TOrder? stored, DocumentSaveRules saveRules, CancellationToken cancellationToken)
     {
         if (values.PartnerId is { } partnerId)
         {
             var partner = await PartnerFacts(partnerId).SingleOrDefaultAsync(cancellationToken);
             if (partner is null)
                 return AppError.ReferenceNotFound(kind.PartnerField, partnerId);
-            if (!partner.IsActive && stored?.PartnerId != partnerId)
-                return AppError.ReferenceInactive(kind.PartnerField, partnerId);
+            if (!partner.IsActive && stored?.PartnerId != partnerId
+                && ReferenceCheck.Inactive(AppError.ReferenceInactive(kind.PartnerField, partnerId), saveRules.InactiveAssignable) is { } inactive)
+                return inactive;
             if (!partner.HasRole)
                 return RoleMissing(partnerId);
         }
 
         var warehouseError = await ReferenceCheck.ValidateAsync(
             db.Warehouses.Where(w => w.Id == values.WarehouseId).Select(w => w.IsActive),
-            WarehouseField, values.WarehouseId, alreadyAssigned: stored?.WarehouseId == values.WarehouseId, cancellationToken);
+            WarehouseField, values.WarehouseId, alreadyAssigned: stored?.WarehouseId == values.WarehouseId, cancellationToken, saveRules.InactiveAssignable);
         if (warehouseError is not null)
             return warehouseError;
 
@@ -331,7 +344,7 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
             db, values.Lines.Select(l => l.ArticleId), values.Lines.Where(l => l.UnitId is not null).Select(l => l.UnitId!.Value), cancellationToken);
         // The lines of an order of any kind are judged like those of a receipt: a quantity greater than zero that converts.
         var requests = values.Lines.Select(l => new StockLineRequest(l.ArticleId, l.Quantity, l.UnitId)).ToList();
-        var lines = StockLineChecks.References(requests, facts, articlesOnOrder, unitsOnOrder, StockDocumentType.Receipt);
+        var lines = StockLineChecks.References(requests, facts, articlesOnOrder, unitsOnOrder, StockDocumentType.Receipt, inactiveAssignable: saveRules.InactiveAssignable);
         if (!lines.IsSuccess)
             return lines.Error;
         return lines.Value.Select((l, i) => new OrderLineEntry(l.ArticleId, l.UnitId, l.Quantity, values.Lines[i].UnitPrice)).ToList();
@@ -412,7 +425,7 @@ public abstract class OrderOperations<TOrder, TLine, TDto, TSummary>(IXerpDb db,
 
     private Result<OrderValues> Validate(OrderInput input, TenantRules tenantRules) => OrderValidation.Values(
         kind, tenantRules[kind.PartnerRequired], input.OrderDate, input.DueDate, input.PartnerId, input.WarehouseId, input.Reference, input.Note, input.Lines,
-        input.DueDateGiven, input.ReferenceGiven, input.NoteGiven, input.WarehouseOptional, input.PartnerGiven);
+        input.DueDateGiven, input.ReferenceGiven, input.NoteGiven, input.WarehouseOptional, input.PartnerGiven, DocumentSaveRules.From(tenantRules));
 
     /// <summary>Whether the partner is active and has the role this kind of order asks for (R2; spec 010, R3: each kind checks only its own).</summary>
     private IQueryable<PartnerState> PartnerFacts(Guid partnerId) => PartnerChecks.State(db, partnerId, kind.Side);

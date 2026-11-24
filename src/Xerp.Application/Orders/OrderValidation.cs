@@ -80,8 +80,9 @@ public static class OrderValidation
     public static Result<OrderValues> Values(
         OrderKind kind, bool partnerRequired, string? orderDate, string? dueDate, string? partnerId, string? warehouseId, string? reference, string? note,
         IReadOnlyList<OrderLineInput?>? lines, bool dueDateGiven = true, bool referenceGiven = true, bool noteGiven = true,
-        bool warehouseOptional = false, bool partnerGiven = true)
+        bool warehouseOptional = false, bool partnerGiven = true, DocumentSaveRules? rules = null)
     {
+        rules ??= DocumentSaveRules.Defaults;
         var errors = new ValidationErrors();
 
         // R3: exactly YYYY-MM-DD and a real calendar date.
@@ -121,6 +122,11 @@ public static class OrderValidation
         else
             errors.Add(kind.PartnerField, $"{kind.PartnerField} must be the id (UUID) of a partner, not its code, or null.");
         var warehouse = DefaultWarehouseRules.Named(errors, warehouseId, warehouseOptional);
+        // Spec 014, R21: with the rule, a new order names its warehouse.
+        if (warehouseOptional && warehouseId is null && rules.WarehouseRequired)
+            errors.Add(WarehouseField,
+                $"{WarehouseField} is required: this company's rule {Xerp.Domain.Rules.RuleRegistry.DocumentWarehouseRequired.Key} is true, so a new order does not default to a warehouse.",
+                Xerp.Domain.Rules.RuleRegistry.DocumentWarehouseRequired, true);
 
         // R4: as on a stock document (spec 005, R7).
         string? normalizedReference = null;
@@ -128,6 +134,8 @@ public static class OrderValidation
             errors.Add("reference", "reference is required (it may be null).");
         else if (!OptionalTextRules.TryNormalize(reference, StockDocument.ReferenceMaxLength, out normalizedReference))
             errors.Add("reference", $"reference must be at most {StockDocument.ReferenceMaxLength} characters on a single line, without control characters.");
+        else
+            StockDocumentValidation.ReferenceRequired(errors, normalizedReference, rules.ReferenceRequired);
         string? normalizedNote = null;
         if (!noteGiven)
             errors.Add("note", "note is required (it may be null).");
@@ -135,6 +143,7 @@ public static class OrderValidation
             errors.Add("note", $"note must be at most {StockDocument.NoteMaxLength} characters and contain no control characters other than line breaks and tabs.");
 
         var lineValues = new List<OrderLineRequest>();
+        var articleIds = new List<Guid?>();
         if (lines is null || lines.Count == 0)
             errors.Add("lines", $"lines is required: an array of 1 to {StockDocument.MaxLines} lines.");
         else if (lines.Count > StockDocument.MaxLines)
@@ -146,9 +155,11 @@ public static class OrderValidation
                 if (lines[i] is not { } line)
                 {
                     errors.Add($"lines[{i}]", "A line must be an object with articleId, quantity and unitPrice.");
+                    articleIds.Add(null);
                     continue;
                 }
                 var article = RequiredId(errors, line.ArticleId, LineKey(i, "articleId"), "an article", "articleId");
+                articleIds.Add(errors.Has(LineKey(i, "articleId")) ? null : article);
                 Guid? unit = null;
                 if (line.UnitId is not null)
                 {
@@ -181,6 +192,9 @@ public static class OrderValidation
                 else
                     lineValues.Add(new OrderLineRequest(article, line.Quantity.Value, line.UnitPrice.Value, unit));
             }
+            // Spec 014, R19.
+            if (!rules.RepeatedArticleAllowed)
+                StockDocumentValidation.RepeatedByRule(errors, articleIds, i => LineKey(i, "articleId"));
         }
 
         if (errors.Any)
