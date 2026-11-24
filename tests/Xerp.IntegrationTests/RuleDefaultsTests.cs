@@ -189,7 +189,8 @@ public class RuleDefaultsTests(XerpFixture app)
         var count = await Counts.CountAsync(http, s.W1, s.A, 9);
         await Stock.ReceiveAsync(http, s.W1, s.A, 1);
         using var outdated = await Stock.SendPostAsync(http, count.Id());
-        Rules.AssertNamesNoRule(await Stock.ConflictAsync(outdated, "COUNT_OUTDATED"));
+        // 014/AC-01 item 4: the outdated count now names stock.outdatedCountAllowed (014 R27).
+        Rules.AssertNames(await Stock.ConflictAsync(outdated, "COUNT_OUTDATED"), "stock.outdatedCountAllowed", false);
 
         await Rules.AssertBalancedAsync(http);
     }
