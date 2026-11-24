@@ -138,16 +138,21 @@ Owner decisions of 2026-11-24 (answers to `docs/reviews/production-readiness.md`
 
 Order of work from here (agents: builder and tester on Sonnet in herdr, architect = orchestrator):
 
+**Owner priority, 2026-11-24: the company's own agent must use Xerp very simply, set the company's business
+rules and generate its reports.** That moves A01 and RP01 to the front, right after 014.
+
 | Step | What | Size |
 |---|---|---|
 | 1 | **014** document rules (in progress) | M |
-| 2 | **015** inventory valuation (written; refresh against W01 and I01 before tests) | M |
-| 3 | **R01** reliability: automated restore verification, off-site backup copy, backup-failure alert, open review items that can answer 500 | S |
-| 4 | **017** number series (invoices first: format and yearly restart per tenant) | M |
-| 5 | **I02** incoming invoices and payables: supplier invoices with input VAT, link to receipts, payments, open items and aging for both sides | L |
-| 6 | **023** row-level security and a non-owner database role | M |
-| 7 | **X01** accountant export: books of outgoing and incoming invoices (IRA / URA) and payments as CSV, per period | S |
-| 8 | **022** OpenAPI document | S |
+| 2 | **A01** agent experience: server instructions, `guide` playbooks, `setup_status`, rules in plain language (`rule_set_many`, profiles, preview), `search` | M |
+| 3 | **RP01** reports: `report_list` / `report_run`, 13 reports, JSON and CSV | M |
+| 4 | **015** inventory valuation (written; refreshed 2026-11-24) + its reports (stock value, gross margin) | M |
+| 5 | **R01** reliability: verified backups, off-site copy, backup health and alerts, consistent reads | S |
+| 6 | **017** number series | M |
+| 7 | **I02** incoming invoices, payables, open items and aging + their reports | L |
+| 8 | **023** row-level security and a non-owner database role (before a second real company) | M |
+| 9 | **X01** accountant export: IRA / URA books and payments, as fixed-layout reports | S |
+| 10 | **022** OpenAPI document | S |
 
 ### POS module (owner, 2026-10-13)
 
