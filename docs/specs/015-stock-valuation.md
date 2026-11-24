@@ -19,6 +19,27 @@ refuses nothing by default.
 
 **Decisions of the architect that the owner may change** are marked *(default)* and collected in section 12.
 
+## 0. Refresh of 2026-11-24 (architect) — read this first
+
+The spec was written on 2026-10-13. Since then specs P01, P02, W01, U01, I01 and 014 were merged. Where the
+text below disagrees with this section, this section wins.
+
+- **Counts.** Before this spec `tools/list` has **123** tools and the registry **70** rules (not 62 and 43);
+  after it 124 tools (`stock_value_list`) and 73 rules. Every "62 -> 63" below means "123 -> 124".
+- **Work orders (W01).** A completion posts two stock documents in one transaction: the issue of the
+  components, then the receipt of the product. The issue is valued as any issue (R14). The receipt line of
+  the product is **costed by its components**: its amount is the value the component issue took (the sum of
+  `−value` of that issue's entries) and its `unitCost` is that amount divided by the line's quantity,
+  rounded to 6 decimals; it is never judged by `valuation.receiptCostRequired` (the system makes it, as 014/R5)
+  nor valued by `valuation.uncostedReceiptAtCurrentCost`. A work order's reversal reverses both documents by
+  6.6, the receipt first. `GET /work-orders/{id}` shows nothing new.
+- **Invoices (I01).** With `invoice.issueMovesStock` = `true`, the issue an invoice posts is valued as any
+  issue (R14), and the reversal its cancellation posts as any reversal (6.6). The invoice itself shows no
+  cost: margin per invoice is not in scope.
+- **Rules of 014** that touch valuation: with `posting.activeMastersRequired` = `false` an inactive article is
+  valued like any other; with `stock.outdatedCountAllowed` = `true` the count's differences are those of
+  014/R28 and are valued by R14 / R15 like any count line.
+
 ## 1. Goal
 
 Stock has a quantity; after this spec it also has a **value**. A receipt line may carry the purchase cost of

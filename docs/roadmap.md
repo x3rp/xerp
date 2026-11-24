@@ -127,6 +127,51 @@ What stays ahead of posting, and why:
 | 24 | **024 Rate limiting** *(platform)* — limits on `/api/v1` and `/mcp`. | MCP specification (servers must rate-limit tool calls). | Must precede production tenants. |
 | — | Later: OAuth-based MCP authorization together with human login, article groups/categories (and posting configuration per group), barcodes, partner contact data (e-mail, phone, contact persons), several addresses per partner (with 009/010 if they need delivery and invoice addresses), retention/erasure of personal data in partner records, perpetual inventory posting (stock -> G/L), price lists and discounts, bins/locations, lots/serials, multi-currency, returns, fixed reporting, optimistic concurrency (`ETag`/`If-Match`) on masters, country localisation packs (outside the core). | — | Each depends on the core above. |
 
+### Production plan (owner, 2026-11-24)
+
+Goal: a production-ready ERP, **everything except fiscalisation** (Fiskalizacija 2.0 / e-invoices come later).
+Owner decisions of 2026-11-24 (answers to `docs/reviews/production-readiness.md`):
+- several companies may share one server -> row-level security (023) before a second real tenant;
+- accounting = an export for the accountant's software; no general ledger in Xerp (016 is dropped for now);
+- permissions (021) and the audit log (020) are not needed for now;
+- fiscalisation and e-invoicing: later.
+
+Order of work from here (agents: builder and tester on Sonnet in herdr, architect = orchestrator):
+
+**Owner priority, 2026-11-24: the company's own agent must use Xerp very simply, set the company's business
+rules and generate its reports.** That moves A01 and RP01 to the front, right after 014.
+
+| Step | What | Size |
+|---|---|---|
+| 1 | **014** document rules (in progress) | M |
+| 2 | **A01** agent experience: server instructions, `guide` playbooks, `setup_status`, rules in plain language (`rule_set_many`, profiles, preview), `search` | M |
+| 3 | **RP01** reports: `report_list` / `report_run`, 13 reports, JSON and CSV | M |
+| 4 | **015** inventory valuation (written; refreshed 2026-11-24) + its reports (stock value, gross margin) | M |
+| 5 | **R01** reliability: verified backups, off-site copy, backup health and alerts, consistent reads | S |
+| 6 | **017** number series | M |
+| 7 | **I02** incoming invoices, payables, open items and aging + their reports | L |
+| 8 | **023** row-level security and a non-owner database role (before a second real company) | M |
+| 9 | **X01** accountant export: IRA / URA books and payments, as fixed-layout reports | S |
+| 10 | **022** OpenAPI document — the contract any third-party frontend (web, desktop, mobile) is built against | S |
+
+**Owner, 2026-11-24: Xerp is sold as SaaS.** A company subscribes; its people work in the web client, a desktop
+or any other frontend, and its agents through the CLI and MCP — all at the same time, against one backend:
+several stateless API servers, one PostgreSQL. Already true: every client uses the same `/api/v1` and `/mcp`;
+the tenant lock is a database row lock (works across servers); MCP is stateless; sessions and keys live in the
+database. Missing, spec **S01 SaaS platform** (after 023):
+- self-service onboarding: sign-up creates the tenant, its owner user and default data (today: admin key + curl);
+- company administration of its users and agent keys from any client;
+- CORS allow-list per deployment (browser frontends on other origins);
+- OAuth 2.1 for `/mcp` and the API, so hosted agents (claude.ai / ChatGPT connectors) can connect a company
+  without pasting a key;
+- multi-server deployment: migrations as a separate one-shot job instead of at every API start, load balancer
+  and health checks, rate limits at the proxy (today per process), `compose`/k8s example;
+- plans, limits and billing: later, owner decision.
+
+Owner, 2026-11-24: we ship the web client (`xerp-web`); a company may use it or build its own frontend. So the
+API is a **public product contract**: 022 (OpenAPI, with a drift test) moves into S01, CORS is configurable per
+company (its own origins), and breaking changes to `/api/v1` need a new version, never a silent change.
+
 ### POS module (owner, 2026-10-13)
 
 A hospitality POS is built on the ERP before rows 14 and 15 continue: `docs/pos/overview.md` (specs P01–P12,
