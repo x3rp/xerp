@@ -97,7 +97,7 @@ public class PosRuleIsolationAndMcpTests(XerpFixture app)
         await using var s = await OpenAsync();
         var session = await Pos.StartAsync(s.Http, "ANA", PosSetup.AnaPin);
 
-        Assert.Equal(132, (await s.Mcp.Client.ListToolsAsync()).Select(t => t.ProtocolTool.Name).Distinct().Count());
+        Assert.Equal(134, (await s.Mcp.Client.ListToolsAsync()).Select(t => t.ProtocolTool.Name).Distinct().Count());
         McpAssert.JsonEqual(await Stock.ListAsync(s.Http, Pos.Roles), await s.Mcp.OkAsync("pos_role_list", new { }));
         using (var byCode = await s.Http.GetAsync($"{Pos.Operators}/by-code/ana"))
             McpAssert.JsonEqual(await HttpAssert.JsonAsync(byCode, HttpStatusCode.OK), await s.Mcp.OkAsync("pos_operator_get", new { code = "ana" }));

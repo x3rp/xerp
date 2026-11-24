@@ -13,4 +13,4 @@ What to check, and what to send to the accountant.
 
 ## For the accountant
 
-The issued invoices of the month with their numbers and VAT recapitulation (`invoice_list`, `invoice_get`), the stock documents with numbers (`stock_document_list`) and the sales and purchase orders. See `reports` for the report catalogue.
+The issued invoices of the month with their numbers and VAT recapitulation (`invoice_list`, `invoice_get`), the stock documents with numbers (`stock_document_list`) and the sales and purchase orders. Run them with `report_run` (`sales-by-period`, `vat-output`, `payments-received`, `unpaid-invoices`, `stock-movements`) and `format` `csv`; see `reports`.
