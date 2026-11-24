@@ -127,6 +127,28 @@ What stays ahead of posting, and why:
 | 24 | **024 Rate limiting** *(platform)* — limits on `/api/v1` and `/mcp`. | MCP specification (servers must rate-limit tool calls). | Must precede production tenants. |
 | — | Later: OAuth-based MCP authorization together with human login, article groups/categories (and posting configuration per group), barcodes, partner contact data (e-mail, phone, contact persons), several addresses per partner (with 009/010 if they need delivery and invoice addresses), retention/erasure of personal data in partner records, perpetual inventory posting (stock -> G/L), price lists and discounts, bins/locations, lots/serials, multi-currency, returns, fixed reporting, optimistic concurrency (`ETag`/`If-Match`) on masters, country localisation packs (outside the core). | — | Each depends on the core above. |
 
+### Production plan (owner, 2026-11-24)
+
+Goal: a production-ready ERP, **everything except fiscalisation** (Fiskalizacija 2.0 / e-invoices come later).
+Owner decisions of 2026-11-24 (answers to `docs/reviews/production-readiness.md`):
+- several companies may share one server -> row-level security (023) before a second real tenant;
+- accounting = an export for the accountant's software; no general ledger in Xerp (016 is dropped for now);
+- permissions (021) and the audit log (020) are not needed for now;
+- fiscalisation and e-invoicing: later.
+
+Order of work from here (agents: builder and tester on Sonnet in herdr, architect = orchestrator):
+
+| Step | What | Size |
+|---|---|---|
+| 1 | **014** document rules (in progress) | M |
+| 2 | **015** inventory valuation (written; refresh against W01 and I01 before tests) | M |
+| 3 | **R01** reliability: automated restore verification, off-site backup copy, backup-failure alert, open review items that can answer 500 | S |
+| 4 | **017** number series (invoices first: format and yearly restart per tenant) | M |
+| 5 | **I02** incoming invoices and payables: supplier invoices with input VAT, link to receipts, payments, open items and aging for both sides | L |
+| 6 | **023** row-level security and a non-owner database role | M |
+| 7 | **X01** accountant export: books of outgoing and incoming invoices (IRA / URA) and payments as CSV, per period | S |
+| 8 | **022** OpenAPI document | S |
+
 ### POS module (owner, 2026-10-13)
 
 A hospitality POS is built on the ERP before rows 14 and 15 continue: `docs/pos/overview.md` (specs P01–P12,
