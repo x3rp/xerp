@@ -96,7 +96,7 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
 
         return await db.SerializedPerTenantAsync<Result<ArticleDto>>(async ct =>
         {
-            if (await CheckBaseUnitAsync(values.BaseUnitId, alreadyAssigned: false, ct) is { } referenceError)
+            if (await CheckBaseUnitAsync(values.BaseUnitId, alreadyAssigned: false, tenantRules, ct) is { } referenceError)
                 return referenceError;
             if (await CodeIsUsedAsync(values.Code, exceptId: null, ct))
                 return CodeTaken(values.Code);
@@ -135,7 +135,7 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
                 return frozen;
             // Keeping the current base unit is allowed even if that unit has been deactivated since (R9).
             var keepsBaseUnit = article.BaseUnitId == values.BaseUnitId;
-            if (await CheckBaseUnitAsync(values.BaseUnitId, keepsBaseUnit, ct) is { } referenceError)
+            if (await CheckBaseUnitAsync(values.BaseUnitId, keepsBaseUnit, tenantRules, ct) is { } referenceError)
                 return referenceError;
             if (MasterWriteChecks.CodeChange(tenantRules, RuleRegistry.Article, "an article", article.Code, values.Code) is { } codeChange)
                 return codeChange;
@@ -270,10 +270,12 @@ public sealed class ArticleOperations(IXerpDb db, ITenantContext context, IClock
         return ToDto(new Row { Article = article, BaseUnitCode = unit.Code, BaseUnitName = unit.Name });
     }
 
-    private Task<AppError?> CheckBaseUnitAsync(Guid baseUnitId, bool alreadyAssigned, CancellationToken cancellationToken) =>
+    private Task<AppError?> CheckBaseUnitAsync(Guid baseUnitId, bool alreadyAssigned, TenantRules tenantRules, CancellationToken cancellationToken) =>
         ReferenceCheck.ValidateAsync(
             db.UnitsOfMeasure.Where(u => u.Id == baseUnitId).Select(u => u.IsActive),
-            BaseUnitField, baseUnitId, alreadyAssigned, cancellationToken);
+            BaseUnitField, baseUnitId, alreadyAssigned, cancellationToken,
+            // Spec 014, R22.
+            inactiveAssignable: tenantRules[Xerp.Domain.Rules.RuleRegistry.ReferencesInactiveAssignable]);
 
     private Task<bool> CodeIsUsedAsync(string code, Guid? exceptId, CancellationToken cancellationToken) =>
         db.Articles.AnyAsync(

@@ -36,14 +36,14 @@ form: *"Partner required on a receipt: True or False"* and the same for an issue
 ## 2. Scope
 
 In scope
-1. 13 new entries in the rule registry (6.1); the registry then has 43.
+1. 13 new entries in the rule registry (6.1); the registry then has 70 (57 before this spec: specs 012, 013, P01, P02, W01, U01 and I01 added theirs).
 2. The existing checks of 6.1 read their rule and name it in the error; four behaviours that did not exist
    are built as the other value of a switch: refusing a back-dated or post-dated document, refusing a
    reversal of a document with retired masters, posting an outdated count against current stock.
 3. One new error code: `DATE_NOT_ALLOWED`.
 
 Out of scope
-- **No new operation and no new tool**; `tools/list` still returns 62. No request or response shape changes
+- **No new operation and no new tool**; `tools/list` still returns 123 (the tools of specs 001–I01). No request or response shape changes
   (architecture §11): `partnerId`, `reference` and `warehouseId` are already nullable or omittable.
 - Rules that only orders have — the partner's role on an order, due dates, zero prices, the order's
   warehouse on a linked document, reopening, self-closing, confirming beyond availability: spec 014a.
@@ -111,6 +111,16 @@ value** (012/R15); the last column says what that means for the rule.
 | `stock.reversalActiveMastersRequired` | A reversal needs active warehouse, articles and partner | `false` | `true`: a reversal is refused while a master of the original is inactive (`REFERENCE_INACTIVE`). | Reversals already made; the original stays `posted` and can be reversed once the master is active again. |
 | `stock.outdatedCountAllowed` | A count whose book quantity is no longer current may be posted | `false` | `true`: the count is posted against the stock at the moment of posting; `COUNT_OUTDATED` is not answered. | Posted counts; a draft count's book quantity until it is posted. |
 
+**Scope notes.**
+- `references.inactiveAssignable` covers stock documents, orders, an article's `baseUnitId` and an article
+  unit's `unitId` only. `REFERENCE_INACTIVE` of invoices, work orders, POS and sales data stays an
+  invariant: no `rules` member, whatever the value.
+- The past/future date rules (`document.pastDateAllowed`, `document.futureDateAllowed`) judge
+  `stock_document_post`, order confirmation and `stock_document_reverse` **called by a client**. They do not
+  judge the documents that a work order completion or reversal, or an invoice issue or cancellation, posts:
+  those follow their own dates. For them `stock.reversalBeforeOriginalAllowed` (reversal before the
+  original) still applies.
+
 Fixed checks these replace: 011a/R2, R6, R12 (partner optional; its role); 005/R2 (any date); 006/R12
 (reversal not before the original); 005/R7, 009/R4 (reference optional); 005/R4, 009/R5 (repeats allowed);
 011/R8–R10 (omitted warehouse); 002/R9, 005/R3, R5, 007/R4, R12, 009/R6, R10, 011a/R5 (inactive not newly
@@ -124,7 +134,7 @@ transfer names both warehouses (006/R2, I8) and a replace names the warehouse (0
 
 ### 6.2 What is judged, and when
 
-- R1. The registry has exactly 43 rules: the 30 of specs 012–013 and the 13 of 6.1. Everything of 012
+- R1. The registry has exactly 70 rules: the 57 present before this spec (specs 012, 013, P01, P02, W01, U01, I01) and the 13 of 6.1. Everything of 012
   §6.2–6.3 holds for them.
 - R2. Which operation applies which rule:
 
@@ -340,7 +350,7 @@ Structure
 - AC-01 *(manual)* Build and tests exit 0; earlier tests pass unweakened. **No test of specs 001–013 that
   asserts a status, a code, an `errors` key, a quantity, a number or a state changes** — they run in tenants
   that set no rule (AC-20). The **only** earlier tests changed:
-  1. tests that pin the number of rules or their literal list: 30 -> 43, with the list of AC-10;
+  1. tests that pin the number of rules or their literal list: 57 -> 70, with the list of AC-10;
   2. tests of the rule list's filters whose expected result now has more keys: `group=stock` (one key ->
      seven), and `search=partnerRequired` — the search is case-insensitive (001/R9), so it now also finds
      `stock.receiptPartnerRequired` and `stock.issuePartnerRequired`;
@@ -361,7 +371,7 @@ Structure
   function; the count's differences of R28.
 
 The registry
-- AC-10 In a new tenant `GET /rules?limit=500` -> `total == 43`: the 30 keys of 013 AC-10 and, each at its
+- AC-10 In a new tenant `GET /rules?limit=500` -> `total == 70`: the 57 keys present before this spec (013 AC-10 and the keys of P01, P02, W01, U01, I01) and, each at its
   place in ordinal order, these with these defaults (literal): `document.futureDateAllowed` `true`,
   `document.pastDateAllowed` `true`, `document.referenceRequired` `false`,
   `document.repeatedArticleAllowed` `true`, `document.warehouseRequired` `false`,
@@ -371,7 +381,7 @@ The registry
   `stock.reversalBeforeOriginalAllowed` `false`.
 - AC-11 `group=document` -> five; `group=posting` -> one; `group=references` -> one; `group=stock` -> seven.
 - AC-12 Every one of the 13 accepts both values and resets.
-- AC-13 `tools/list` still returns exactly 62 names.
+- AC-13 `tools/list` still returns exactly 123 names.
 
 Defaults reproduce specs 001–013
 - AC-20 In a tenant that sets nothing: an unlinked receipt and an unlinked issue without a partner are
@@ -513,7 +523,7 @@ Existing data and timing
 
 Tenant isolation
 - AC-100 Tenant X sets all 13 rules to the value that is not the default. In tenant Y everything of AC-20
-  and AC-22 still holds, and `GET /rules` shows 43 defaults.
+  and AC-22 still holds, and `GET /rules` shows 70 defaults.
 
 MCP
 - AC-110 Through tools only: `rule_set` `{ key: "stock.receiptPartnerRequired", value: true }`;

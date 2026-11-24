@@ -121,10 +121,10 @@ public class RuleRegistryTests(XerpFixture app)
         var list = await Rules.ListAsync(tenant.Client, "?limit=100");
 
         Assert.Equal(new[] { "items", "limit", "offset", "total" }, list.PropertyNames());
-        Assert.Equal(57, list.Total());
+        Assert.Equal(70, list.Total());
         // The literal inventory (architecture §9): a spec that adds a rule adds it here, with its default.
         // Spec 013, AC-10: the six of spec 012 and the 24 of the masters. Spec P01, AC-10: the ten of sales master data.
-        // Spec P02, AC-10: the eight of POS operators.
+        // Spec P02, AC-10: the eight of POS operators. Spec 014, AC-10: the 13 of documents.
         var inventory = new (string Key, bool Default)[]
         {
             ("article.barcodeUnique", true),
@@ -136,6 +136,11 @@ public class RuleRegistryTests(XerpFixture app)
             ("article.taxRateRequired", false),
             ("articleCategory.codeChangeable", true),
             ("articleCategory.nameUnique", false),
+            ("document.futureDateAllowed", true),
+            ("document.pastDateAllowed", true),
+            ("document.referenceRequired", false),
+            ("document.repeatedArticleAllowed", true),
+            ("document.warehouseRequired", false),
             ("invoice.backdatingAllowed", false),
             ("invoice.customerRequired", true),
             ("invoice.issueMovesStock", false),
@@ -161,15 +166,23 @@ public class RuleRegistryTests(XerpFixture app)
             ("posOperator.roleRequired", true),
             ("posRole.codeChangeable", true),
             ("posRole.nameUnique", false),
+            ("posting.activeMastersRequired", true),
             ("production.componentsMayDifferFromBom", true),
             ("production.consumptionMayDifferFromPlan", true),
             ("production.producedQuantityMayDifferFromPlan", true),
             ("purchase.overReceiptAllowed", false),
             ("purchase.partnerRequired", true),
+            ("references.inactiveAssignable", false),
             ("sales.overDeliveryAllowed", false),
             ("sales.partnerRequired", true),
             ("sales.reservedStockProtected", false),
+            ("stock.issuePartnerRequired", false),
             ("stock.negativeStockAllowed", false),
+            ("stock.outdatedCountAllowed", false),
+            ("stock.partnerRoleRequired", true),
+            ("stock.receiptPartnerRequired", false),
+            ("stock.reversalActiveMastersRequired", false),
+            ("stock.reversalBeforeOriginalAllowed", false),
             ("taxRate.codeChangeable", true),
             ("taxRate.nameUnique", false),
             ("uom.codeChangeable", true),
@@ -224,7 +237,7 @@ public class RuleRegistryTests(XerpFixture app)
     {
         var tenant = await app.NewTenantAsync();
         var list = await Rules.ListAsync(tenant.Client, "?limit=100");
-        Assert.Equal(57, list.Items().Length);
+        Assert.Equal(70, list.Items().Length);
 
         foreach (var listed in list.Items())
             McpAssert.JsonEqual(listed, await Rules.GetAsync(tenant.Client, listed.Str("key")), "GET /rules/{key} differs from the list item");
@@ -255,7 +268,7 @@ public class RuleRegistryTests(XerpFixture app)
     {
         var tenant = await app.NewTenantAsync();
         // The registry answers in this tenant: the 404 below is about the key, not about a missing route.
-        Assert.Equal(57, (await Rules.ListAsync(tenant.Client)).Total());
+        Assert.Equal(70, (await Rules.ListAsync(tenant.Client)).Total());
 
         using var get = await tenant.Client.GetAsync(Rules.PathOf(key));
         using var reset = await Rules.SendResetAsync(tenant.Client, key);
@@ -275,10 +288,15 @@ public class RuleRegistryTests(XerpFixture app)
 
         Assert.Equal(new[] { Rules.OverDelivery, Rules.SalesPartner, Rules.Protected }, (await Rules.ListAsync(http, "?group=sales")).RuleKeys());
         Assert.Equal(new[] { Rules.OverReceipt, Rules.PurchasePartner }, (await Rules.ListAsync(http, "?group=purchase")).RuleKeys());
-        Assert.Equal(new[] { Rules.NegativeStock }, (await Rules.ListAsync(http, "?group=stock")).RuleKeys());
-        Assert.Equal(new[] { Rules.PurchasePartner, Rules.SalesPartner }, (await Rules.ListAsync(http, "?search=partnerRequired")).RuleKeys());
+        // 014/AC-01 item 2: group=stock has seven keys; the search finds the two partner rules of stock documents too.
+        Assert.Equal(new[] { "stock.issuePartnerRequired", Rules.NegativeStock, "stock.outdatedCountAllowed", "stock.partnerRoleRequired",
+            "stock.receiptPartnerRequired", "stock.reversalActiveMastersRequired", "stock.reversalBeforeOriginalAllowed" },
+            (await Rules.ListAsync(http, "?group=stock")).RuleKeys());
+        Assert.Equal(new[] { Rules.PurchasePartner, Rules.SalesPartner, "stock.issuePartnerRequired", "stock.receiptPartnerRequired" },
+            (await Rules.ListAsync(http, "?search=partnerRequired")).RuleKeys());
         // 001/R9: a case-insensitive substring, trimmed.
-        Assert.Equal(new[] { Rules.PurchasePartner, Rules.SalesPartner }, (await Rules.ListAsync(http, "?search=%20PARTNERREQUIRED%20")).RuleKeys());
+        Assert.Equal(new[] { Rules.PurchasePartner, Rules.SalesPartner, "stock.issuePartnerRequired", "stock.receiptPartnerRequired" },
+            (await Rules.ListAsync(http, "?search=%20PARTNERREQUIRED%20")).RuleKeys());
         Assert.Equal(new[] { Rules.SalesPartner }, (await Rules.ListAsync(http, "?group=sales&search=partnerRequired")).RuleKeys());
         Assert.Equal(Rules.All, (await Rules.ListAsync(http, "?source=default&limit=100")).RuleKeys());
 
@@ -300,7 +318,7 @@ public class RuleRegistryTests(XerpFixture app)
         Assert.Equal(new[] { Rules.Protected }, (await Rules.ListAsync(http, "?source=tenant&group=sales")).RuleKeys());
         // R1: the list has all thirty for every tenant, set or not.
         var all = await Rules.ListAsync(http, "?limit=100");
-        Assert.Equal(57, all.Total());
+        Assert.Equal(70, all.Total());
         Assert.Equal(Rules.All, all.RuleKeys());
     }
 
@@ -310,11 +328,11 @@ public class RuleRegistryTests(XerpFixture app)
         var tenant = await app.NewTenantAsync();
 
         var page = await Rules.ListAsync(tenant.Client, "?limit=2&offset=1");
-        var beyond = await Rules.ListAsync(tenant.Client, "?offset=57");
+        var beyond = await Rules.ListAsync(tenant.Client, "?offset=70");
 
         Assert.Equal(Rules.All[1..3], page.RuleKeys());
-        Assert.Equal((57, 2, 1), (page.Total(), page.GetProperty("limit").GetInt32(), page.GetProperty("offset").GetInt32()));
-        Assert.Equal((57, 0), (beyond.Total(), beyond.Items().Length));
+        Assert.Equal((70, 2, 1), (page.Total(), page.GetProperty("limit").GetInt32(), page.GetProperty("offset").GetInt32()));
+        Assert.Equal((70, 0), (beyond.Total(), beyond.Items().Length));
         Assert.Equal(50, (await Rules.ListAsync(tenant.Client)).GetProperty("limit").GetInt32());
     }
 }

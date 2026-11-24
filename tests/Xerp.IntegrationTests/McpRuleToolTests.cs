@@ -51,7 +51,7 @@ public class McpRuleToolTests(XerpFixture app)
 
         var list = await s.Mcp.OkAsync("rule_list", new { limit = 100 });
 
-        Assert.Equal(57, list.Total());
+        Assert.Equal(70, list.Total());
         Assert.Equal(Rules.All, list.RuleKeys());
         McpAssert.JsonEqual(await Rules.ListAsync(s.Http, "?limit=100"), list, "rule_list differs from GET /rules");
         McpAssert.JsonEqual(await Rules.ListAsync(s.Http, "?group=sales&search=partner&source=default&limit=1&offset=0"),

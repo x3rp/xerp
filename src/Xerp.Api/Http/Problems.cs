@@ -31,7 +31,7 @@ public static class Problems
             or ErrorCodes.ReferenceNotFound or ErrorCodes.ReferenceInactive
             or ErrorCodes.InsufficientStock or ErrorCodes.ArticleNotStocked
             or ErrorCodes.UnitIsBaseUnit or ErrorCodes.UnitNotOnArticle or ErrorCodes.QuantityNotConvertible
-            or ErrorCodes.CountOutdated or ErrorCodes.PartnerRoleMissing or ErrorCodes.OrderNotOpen
+            or ErrorCodes.CountOutdated or ErrorCodes.DateNotAllowed or ErrorCodes.PartnerRoleMissing or ErrorCodes.OrderNotOpen
             or ErrorCodes.OrderMismatch or ErrorCodes.QuantityExceedsOrder
             or ErrorCodes.DefaultWarehouse or ErrorCodes.StockReserved
             or ErrorCodes.CodeChangeNotAllowed or ErrorCodes.NameTaken or ErrorCodes.TaxIdTaken or ErrorCodes.BarcodeTaken

@@ -186,14 +186,6 @@ public class StockTransferReversalValidationTests
         AssertInvalid(StockDocumentValidation.Reverse(new ReverseStockDocumentInput("2026-10-10", "a\u0000b")), "note");
     }
 
-    [Fact]
-    public void R12_E8_A_reversal_is_not_dated_before_its_original()
-    {
-        Assert.Null(StockDocumentValidation.ReversalDate(Day, Day));
-        Assert.Null(StockDocumentValidation.ReversalDate(Day.AddYears(1), Day));
-        AssertError(StockDocumentValidation.ReversalDate(Day.AddDays(-1), Day), ErrorCodes.ValidationFailed, "documentDate");
-    }
-
     // ---- reversal: no negative stock (R16)
 
     [Fact]

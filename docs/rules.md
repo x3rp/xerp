@@ -17,7 +17,7 @@ is configurable** — and **a rule is a boolean**: a named yes/no switch in plai
 - **INVARIANT** — cannot be switched off without breaking integrity, security or the contract, or is a bound
   of the platform. Referred to as I1–I12.
 - **Batch** — the spec that moves the rule onto the registry. Until that spec is merged the rule is still a
-  fixed check with the default's behaviour. `012` and `013` are merged; `P01` is built (review OK, merged after the tester's AC-81 correction and a green run); `014`, `017`, `021` are roadmap rows.
+  fixed check with the default's behaviour. `012` and `013` are merged; `P01` is built (review OK, merged after the tester's AC-81 correction and a green run); `014` introduces 13 rules (the other 11 of its batch are spec 014a); `017`, `021` are roadmap rows.
   **feature** means: the rule is a business choice, not an invariant, but its other value is behaviour that
   does not exist yet; it becomes a switch with the spec that builds it.
 - Sources are written `005/R15` (spec 005, rule R15), `arch §5` (architecture), `ADR-0012`.
@@ -80,34 +80,41 @@ behaviour) and what yes and no do. `<m>` stands for each of `uom`, `article`, `p
 24 rules. Each judges create and replace of its own resource and nothing else; a replace is judged whole
 (spec 013, R2–R3).
 
-### Batch 014 — documents (roadmap; may be split in two when written)
+### Batch 014 — documents (spec 014 introduces 13 rules, spec 014a the other 11)
 
-| Key | Name | Default | Yes / no |
-|---|---|---|---|
-| `references.inactiveAssignable` | An inactive record may be newly referenced | `false` | No: `REFERENCE_INACTIVE` on save. |
-| `posting.activeMastersRequired` | Posting and confirmation need active warehouse, articles and partner | `true` | — |
-| `stock.reversalActiveMastersRequired` | A reversal needs active warehouse, articles and partner | `false` | The default keeps mistakes correctable. |
-| `document.pastDateAllowed` | A document or order may be dated before today | `true` | No: back-dating is refused. ("Today" needs a clock: spec 014 defines it.) |
-| `document.futureDateAllowed` | A document or order may be dated after today | `true` | — |
-| `stock.reversalBeforeOriginalAllowed` | A reversal may be dated before its original | `false` | — |
-| `order.dueDateBeforeOrderDateAllowed` | The expected / requested date may be before the order date | `false` | — |
-| `purchase.expectedDateRequired` | Expected date required on a purchase order | `false` | — |
-| `sales.requestedDateRequired` | Requested date required on a sales order | `false` | — |
-| `document.referenceRequired` | Reference required on a document or order | `false` | — |
-| `document.repeatedArticleAllowed` | The same article may be on several lines | `true` | A count: never (I8). |
-| `document.warehouseRequired` | The warehouse must be named on every new document | `false` | No: an omitted warehouse means the default warehouse. Yes: it is an error. |
-| `stock.receiptPartnerRequired` | Partner required on a receipt that is not linked to an order | `false` | — |
-| `stock.issuePartnerRequired` | Partner required on an issue that is not linked to an order | `false` | — |
-| `purchase.supplierRoleRequired` | The partner of a purchase order must be a supplier | `true` | No: any partner (`PARTNER_ROLE_MISSING` is not answered). |
-| `sales.customerRoleRequired` | The partner of a sales order must be a customer | `true` | — |
-| `stock.partnerRoleRequired` | The partner of a receipt must be a supplier, of an issue a customer | `true` | — |
-| `purchase.receiptOtherWarehouseAllowed` | A receipt may use a warehouse other than its order's | `false` | — |
-| `sales.deliveryOtherWarehouseAllowed` | A delivery may use a warehouse other than its order's | `false` | — |
-| `stock.outdatedCountAllowed` | A count whose book quantity is no longer current may be posted | `false` | No: `COUNT_OUTDATED`. Yes: posted against the stock at posting. |
-| `price.zeroAllowed` | A unit price of zero is accepted | `true` | — |
-| `order.reopenAllowed` | A closed order may be reopened | `true` | — |
-| `order.closesWhenFulfilled` | An order closes itself when every line is fulfilled | `false` | — |
-| `sales.confirmBeyondAvailableAllowed` | A sales order may be confirmed for more than is available | `true` | — |
+Batch 014 is split in two specs. **Spec 014 introduces the 13 rules marked 014 below, with exactly these
+keys and defaults** (spec 014 §6.1); with them the registry has 70 rules (57 before). Spec 014a has the
+remaining 11. Notes: `references.inactiveAssignable` covers stock documents, orders, an article's
+`baseUnitId` and an article unit's `unitId` only (`REFERENCE_INACTIVE` of invoices, work orders, POS and
+sales data stays an invariant). The date rules judge `stock_document_post`, order confirmation and
+`stock_document_reverse` called by a client, not the documents a work order or an invoice posts.
+
+| Key | Name | Default | Yes / no | Spec |
+|---|---|---|---|---|
+| `references.inactiveAssignable` | An inactive record may be newly referenced | `false` | No: `REFERENCE_INACTIVE` on save. | **014** (introduced) |
+| `posting.activeMastersRequired` | Posting and confirmation need active warehouse, articles and partner | `true` | — | **014** (introduced) |
+| `stock.reversalActiveMastersRequired` | A reversal needs active warehouse, articles and partner | `false` | The default keeps mistakes correctable. | **014** (introduced) |
+| `document.pastDateAllowed` | A document or order may be dated before today | `true` | No: back-dating is refused. ("Today" needs a clock: spec 014 defines it.) | **014** (introduced) |
+| `document.futureDateAllowed` | A document or order may be dated after today | `true` | — | **014** (introduced) |
+| `stock.reversalBeforeOriginalAllowed` | A reversal may be dated before its original | `false` | — | **014** (introduced) |
+| `order.dueDateBeforeOrderDateAllowed` | The expected / requested date may be before the order date | `false` | — | 014a (written, not built) |
+| `purchase.expectedDateRequired` | Expected date required on a purchase order | `false` | — | 014a (written, not built) |
+| `sales.requestedDateRequired` | Requested date required on a sales order | `false` | — | 014a (written, not built) |
+| `document.referenceRequired` | Reference required on a document or order | `false` | — | **014** (introduced) |
+| `document.repeatedArticleAllowed` | The same article may be on several lines | `true` | A count: never (I8). | **014** (introduced) |
+| `document.warehouseRequired` | The warehouse must be named on every new document | `false` | No: an omitted warehouse means the default warehouse. Yes: it is an error. | **014** (introduced) |
+| `stock.receiptPartnerRequired` | Partner required on a receipt that is not linked to an order | `false` | — | **014** (introduced) |
+| `stock.issuePartnerRequired` | Partner required on an issue that is not linked to an order | `false` | — | **014** (introduced) |
+| `purchase.supplierRoleRequired` | The partner of a purchase order must be a supplier | `true` | No: any partner (`PARTNER_ROLE_MISSING` is not answered). | 014a (written, not built) |
+| `sales.customerRoleRequired` | The partner of a sales order must be a customer | `true` | — | 014a (written, not built) |
+| `stock.partnerRoleRequired` | The partner of a receipt must be a supplier, of an issue a customer | `true` | — | **014** (introduced) |
+| `purchase.receiptOtherWarehouseAllowed` | A receipt may use a warehouse other than its order's | `false` | — | 014a (written, not built) |
+| `sales.deliveryOtherWarehouseAllowed` | A delivery may use a warehouse other than its order's | `false` | — | 014a (written, not built) |
+| `stock.outdatedCountAllowed` | A count whose book quantity is no longer current may be posted | `false` | No: `COUNT_OUTDATED`. Yes: posted against the stock at posting. | **014** (introduced) |
+| `price.zeroAllowed` | A unit price of zero is accepted | `true` | — | 014a (written, not built) |
+| `order.reopenAllowed` | A closed order may be reopened | `true` | — | 014a (written, not built) |
+| `order.closesWhenFulfilled` | An order closes itself when every line is fulfilled | `false` | — | 014a (written, not built) |
+| `sales.confirmBeyondAvailableAllowed` | A sales order may be confirmed for more than is available | `true` | — | 014a (written, not built) |
 
 ### Batch 015 — stock valuation (spec 015, written)
 

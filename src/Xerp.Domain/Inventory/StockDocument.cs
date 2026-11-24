@@ -328,6 +328,20 @@ public sealed class StockDocument : ITenantOwned
     }
 
     /// <summary>
+    /// Spec 014, R28: a draft count posted although its book quantities are outdated takes the stock of the
+    /// moment of posting as its book quantities, in line order; the differences then follow from them.
+    /// </summary>
+    public void RetakeBookQuantities(IReadOnlyList<decimal> bookQuantities)
+    {
+        if (Type != StockDocumentType.Count || !IsDraft)
+            throw new InvalidOperationException("Only a draft count has book quantities to retake.");
+        if (bookQuantities.Count != _lines.Count || bookQuantities.Any(b => !CountRules.IsValidBookQuantity(b)))
+            throw new ArgumentException("One valid book quantity per line is required.", nameof(bookQuantities));
+        foreach (var (line, book) in Lines.OrderBy(l => l.LineNo).Zip(bookQuantities))
+            line.SetBookQuantity(book);
+    }
+
+    /// <summary>
     /// Posts the draft (R12, R14; spec 006, R6; spec 007, R17-R19): status, number and posting attribution are
     /// set, every line is converted once more with the factor given for it and keeps that factor and the
     /// resulting base quantity for good, and the ledger entries are returned - one positive entry per line for
@@ -390,14 +404,12 @@ public sealed class StockDocument : ITenantOwned
     /// transaction that saves the result.
     /// </summary>
     /// <param name="entries">All ledger entries of this document, and no others.</param>
-    /// <exception cref="InvalidOperationException">The document cannot be reversed (R11).</exception>
+    /// <exception cref="InvalidOperationException">The document cannot be reversed (R11). Whether the date may precede the original is the tenant's rule stock.reversalBeforeOriginalAllowed (spec 014), judged by the caller.</exception>
     public (StockDocument Reversal, IReadOnlyList<StockLedgerEntry> Entries) Reverse(
         IReadOnlyCollection<StockLedgerEntry> entries, DateOnly documentDate, string? note, string number, DateTime now, Guid actorKeyId)
     {
         if (!CanBeReversed)
             throw new InvalidOperationException("Only a posted stock document that is not itself a reversal can be reversed.");
-        if (documentDate < DocumentDate)
-            throw new ArgumentException("A reversal cannot be dated before the document it reverses.", nameof(documentDate));
         if (!NoteRules.TryNormalize(note, NoteMaxLength, out var reversalNote))
             throw new ArgumentException("Invalid note.", nameof(note));
         if (string.IsNullOrWhiteSpace(number))
@@ -545,6 +557,8 @@ public sealed class StockDocumentLine : ITenantOwned
         SalesOrderId = link is { Side: OrderSide.Sales } ? link.Value.OrderId : null;
         OrderLineNo = entry.OrderLineNo;
     }
+
+    internal void SetBookQuantity(decimal bookQuantity) => BookQuantity = bookQuantity;
 
     internal void Freeze(decimal factor, decimal baseQuantity)
     {

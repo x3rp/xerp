@@ -19,7 +19,7 @@ namespace Xerp.Application.ArticleUnits;
 /// article's base unit cannot change while a conversion for it is being created (R9).
 /// </para>
 /// </summary>
-public sealed class ArticleUnitOperations(IXerpDb db, ITenantContext context, IClock clock)
+public sealed class ArticleUnitOperations(IXerpDb db, ITenantContext context, IClock clock, IRules rules)
 {
     private const string UnitField = "unitId";
     private const string ArticleArgument = "articleId";
@@ -98,8 +98,11 @@ public sealed class ArticleUnitOperations(IXerpDb db, ITenantContext context, IC
                 if (conversion is null)
                 {
                     // R4: an inactive unit cannot be newly assigned; an existing conversion keeps its unit.
-                    if (unitIsActive == false)
-                        return AppError.ReferenceInactive(UnitField, unitId);
+                    // Spec 014, R22: unless the tenant lets inactive records be named.
+                    if (unitIsActive == false
+                        && ReferenceCheck.Inactive(AppError.ReferenceInactive(UnitField, unitId),
+                            (await rules.ReadAsync(ct))[Xerp.Domain.Rules.RuleRegistry.ReferencesInactiveAssignable]) is { } inactive)
+                        return inactive;
                     conversion = ArticleUnit.Create(articleId, article.BaseUnitId, unitId, factor, clock.UtcNow, ActorKeyId());
                     db.ArticleUnits.Add(conversion);
                 }

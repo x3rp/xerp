@@ -110,7 +110,12 @@ public abstract class RulePartnerRequiredTests(XerpFixture app, OrderApi o)
         {
             var problem = await HttpAssert.ProblemAsync(response, HttpStatusCode.Conflict, code);
             Assert.Equal(new[] { o.PartnerId }, McpAssert.ErrorKeys(problem));
-            Rules.AssertNamesNoRule(problem);
+            // 014/AC-01 item 4: the REFERENCE_INACTIVE of an inactive partner now names references.inactiveAssignable
+            // (014 R26); PARTNER_ROLE_MISSING on an order stays without rules (014 R32).
+            if (code == "REFERENCE_INACTIVE")
+                Rules.AssertNames(problem, "references.inactiveAssignable", false, o.PartnerId);
+            else
+                Rules.AssertNamesNoRule(problem);
         }
 
         await ConflictAsync(unknown, "REFERENCE_NOT_FOUND");

@@ -34,9 +34,9 @@ public class RuleSetResetHistoryTests(XerpFixture app)
         Rules.AssertBool(rule, "default", false);
         Assert.InRange(rule.Time("updatedAt"), before, DateTimeOffset.UtcNow.AddSeconds(5));
         McpAssert.JsonEqual(rule, await Rules.GetAsync(tenant.Client, Key), "GET differs from the answer of the Set");
-        McpAssert.JsonEqual(rule, (await Rules.ListAsync(tenant.Client)).Items().Single(r => r.Str("key") == Key));
+        McpAssert.JsonEqual(rule, (await Rules.ListAsync(tenant.Client, "?limit=500")).Items().Single(r => r.Str("key") == Key));
         // Only that rule changed.
-        foreach (var other in (await Rules.ListAsync(tenant.Client)).Items().Where(r => r.Str("key") != Key))
+        foreach (var other in (await Rules.ListAsync(tenant.Client, "?limit=500")).Items().Where(r => r.Str("key") != Key))
         {
             Rules.AssertAtDefault(other, other.Str("key"));
             JsonBody.AssertNull(other, "updatedAt", "updatedBy");

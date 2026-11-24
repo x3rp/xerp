@@ -216,12 +216,12 @@ public class StockTransferReversalRulesTests
     }
 
     [Fact]
-    public void R12_A_reversal_is_not_dated_before_its_original_and_a_refused_reversal_changes_nothing()
+    public void R12_A_refused_reversal_changes_nothing()
     {
         var (original, entries) = Posted(StockDocumentType.Receipt, (A, 1));
         var (other, otherEntries) = Posted(StockDocumentType.Receipt, (A, 1));
 
-        Assert.Throws<ArgumentException>(() => original.Reverse(entries, Day.AddDays(-1), null, "SR-000002", T1, Reverser));
+        // Spec 014: whether a reversal may precede its original is the tenant's rule (judged by the Application), not the domain's.
         Assert.Throws<ArgumentException>(() => original.Reverse(entries, Day, new string('n', 2001), "SR-000002", T1, Reverser));
         Assert.Throws<ArgumentException>(() => original.Reverse(entries, Day, null, " ", T1, Reverser));
         // Reversing entries come from this document's entries only, all of them or nothing.

@@ -45,7 +45,8 @@ public static class StockPartnerChecks
     /// REFERENCE_NOT_FOUND with the keys of all that do not exist, and only when all exist REFERENCE_INACTIVE
     /// with the keys of all that are inactive and newly assigned (ADR-0008).
     /// </summary>
-    public static AppError? HeaderReferences(params HeaderReference[] references)
+    /// <param name="inactiveAssignable">Spec 014, R22: the tenant's <c>references.inactiveAssignable</c>.</param>
+    public static AppError? HeaderReferences(bool inactiveAssignable, params HeaderReference[] references)
     {
         var missing = references.Where(r => r.IsActive is null).ToList();
         if (missing.Count == 1)
@@ -57,11 +58,11 @@ public static class StockPartnerChecks
 
         var inactive = references.Where(r => r.IsActive == false && !r.AlreadyAssigned).ToList();
         if (inactive.Count == 1)
-            return AppError.ReferenceInactive(inactive[0].Field, inactive[0].Id);
+            return ReferenceCheck.Inactive(AppError.ReferenceInactive(inactive[0].Field, inactive[0].Id), inactiveAssignable);
         if (inactive.Count > 1)
-            return new AppError(ErrorCodes.ReferenceInactive,
+            return ReferenceCheck.Inactive(new AppError(ErrorCodes.ReferenceInactive,
                 $"The records referenced by {Names(inactive)} are inactive and cannot be newly assigned.",
-                inactive.ToDictionary(r => r.Field, r => new[] { $"The record with id '{r.Id}' is inactive." }, StringComparer.Ordinal));
+                inactive.ToDictionary(r => r.Field, r => new[] { $"The record with id '{r.Id}' is inactive." }, StringComparer.Ordinal)), inactiveAssignable);
         return null;
     }
 
@@ -70,10 +71,12 @@ public static class StockPartnerChecks
     /// otherwise PARTNER_ROLE_MISSING with key <c>partnerId</c>. Asked on every save and at posting, also when
     /// the partner is kept.
     /// </summary>
-    public static AppError? Role(StockDocumentType type, Guid partnerId, bool hasRole) =>
-        hasRole
+    /// <param name="roleRequired">Spec 014, R10: the tenant's <c>stock.partnerRoleRequired</c>; false lets any partner be named.</param>
+    public static AppError? Role(StockDocumentType type, Guid partnerId, bool hasRole, bool roleRequired = true) =>
+        hasRole || !roleRequired
             ? null
-            : PartnerChecks.RoleMissing(Side(type), PartnerField, $"{(type == StockDocumentType.Issue ? "an" : "a")} {type.ToName()}", partnerId);
+            : PartnerChecks.RoleMissing(Side(type), PartnerField, $"{(type == StockDocumentType.Issue ? "an" : "a")} {type.ToName()}", partnerId)
+                .RefusedBy(Xerp.Domain.Rules.RuleRegistry.StockPartnerRoleRequired, true);
 
     private static string Names(IEnumerable<HeaderReference> references) => string.Join(" and ", references.Select(r => r.Field));
 }
