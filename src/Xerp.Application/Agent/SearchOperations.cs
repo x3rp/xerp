@@ -16,6 +16,9 @@ public sealed class SearchOperations(IXerpDb db)
 {
     public const int PerType = 10;
 
+    /// <summary>What names a draft that has neither a number nor a reference: the first 8 characters of its id.</summary>
+    private static string Draft(Guid id) => "draft-" + id.ToString("N")[..8];
+
     public static readonly string[] Types = ["article", "partner", "warehouse", "document", "order", "invoice"];
 
     /// <param name="textField">The name of the text argument in the caller's own terms ("q" over HTTP, "text" in a tool), for the error.</param>
@@ -78,22 +81,22 @@ public sealed class SearchOperations(IXerpDb db)
             var documents = await db.StockDocuments.AsNoTracking()
                 .Where(d => (d.Number != null && EF.Functions.Like(DbText.Lower(d.Number), DbText.Lower(pattern), LikePattern.EscapeCharacter))
                     || (d.Reference != null && EF.Functions.Like(DbText.Lower(d.Reference), DbText.Lower(pattern), LikePattern.EscapeCharacter)))
-                .OrderByDescending(d => d.CreatedAt).Take(PerType).Select(d => new { d.Id, d.Number, d.Reference, d.Type, d.Status }).ToListAsync(ct);
-            hits.AddRange(documents.Select(d => new SearchHitDto("document", d.Id, d.Number is null ? d.Reference : null, d.Number, null,
-                $"{d.Type.ToName()}{(d.Reference is null ? "" : " " + d.Reference)}", d.Status.ToName())));
+                .OrderByDescending(d => d.CreatedAt).Take(PerType).Select(d => new { d.Id, d.Number, d.Reference, d.Type, d.Status, d.DocumentDate }).ToListAsync(ct);
+            hits.AddRange(documents.Select(d => new SearchHitDto("document", d.Id, d.Number is null ? d.Reference ?? Draft(d.Id) : null, d.Number, null,
+                $"{d.Type.ToName()} {(d.Reference ?? d.DocumentDate.ToString("yyyy-MM-dd"))}", d.Status.ToName())));
         }
         if (wanted.Contains("order"))
         {
             var purchases = await db.PurchaseOrders.AsNoTracking()
                 .Where(o => (o.Number != null && EF.Functions.Like(DbText.Lower(o.Number), DbText.Lower(pattern), LikePattern.EscapeCharacter))
                     || (o.Reference != null && EF.Functions.Like(DbText.Lower(o.Reference), DbText.Lower(pattern), LikePattern.EscapeCharacter)))
-                .OrderByDescending(o => o.CreatedAt).Take(PerType).Select(o => new { o.Id, o.Number, o.Reference, o.Status, o.CreatedAt }).ToListAsync(ct);
+                .OrderByDescending(o => o.CreatedAt).Take(PerType).Select(o => new { o.Id, o.Number, o.Reference, o.Status, o.CreatedAt, o.OrderDate }).ToListAsync(ct);
             var sales = await db.SalesOrders.AsNoTracking()
                 .Where(o => (o.Number != null && EF.Functions.Like(DbText.Lower(o.Number), DbText.Lower(pattern), LikePattern.EscapeCharacter))
                     || (o.Reference != null && EF.Functions.Like(DbText.Lower(o.Reference), DbText.Lower(pattern), LikePattern.EscapeCharacter)))
-                .OrderByDescending(o => o.CreatedAt).Take(PerType).Select(o => new { o.Id, o.Number, o.Reference, o.Status, o.CreatedAt }).ToListAsync(ct);
-            hits.AddRange(purchases.Select(o => (o.CreatedAt, Hit: new SearchHitDto("order", o.Id, o.Number is null ? o.Reference : null, o.Number, null, $"purchase{(o.Reference is null ? "" : " " + o.Reference)}", o.Status.ToName())))
-                .Concat(sales.Select(o => (o.CreatedAt, Hit: new SearchHitDto("order", o.Id, o.Number is null ? o.Reference : null, o.Number, null, $"sales{(o.Reference is null ? "" : " " + o.Reference)}", o.Status.ToName()))))
+                .OrderByDescending(o => o.CreatedAt).Take(PerType).Select(o => new { o.Id, o.Number, o.Reference, o.Status, o.CreatedAt, o.OrderDate }).ToListAsync(ct);
+            hits.AddRange(purchases.Select(o => (o.CreatedAt, Hit: new SearchHitDto("order", o.Id, o.Number is null ? o.Reference ?? Draft(o.Id) : null, o.Number, null, $"purchase order {o.Reference ?? o.OrderDate.ToString("yyyy-MM-dd")}", o.Status.ToName())))
+                .Concat(sales.Select(o => (o.CreatedAt, Hit: new SearchHitDto("order", o.Id, o.Number is null ? o.Reference ?? Draft(o.Id) : null, o.Number, null, $"sales order {o.Reference ?? o.OrderDate.ToString("yyyy-MM-dd")}", o.Status.ToName()))))
                 .OrderByDescending(x => x.CreatedAt).Take(PerType).Select(x => x.Hit));
         }
         if (wanted.Contains("invoice"))
@@ -101,9 +104,9 @@ public sealed class SearchOperations(IXerpDb db)
             var invoices = await db.Invoices.AsNoTracking()
                 .Where(v => (v.Number != null && EF.Functions.Like(DbText.Lower(v.Number), DbText.Lower(pattern), LikePattern.EscapeCharacter))
                     || (v.Reference != null && EF.Functions.Like(DbText.Lower(v.Reference), DbText.Lower(pattern), LikePattern.EscapeCharacter)))
-                .OrderByDescending(v => v.CreatedAt).Take(PerType).Select(v => new { v.Id, v.Number, v.Reference, v.Status }).ToListAsync(ct);
-            hits.AddRange(invoices.Select(v => new SearchHitDto("invoice", v.Id, v.Number is null ? v.Reference : null, v.Number, null,
-                v.Reference is null ? "invoice" : $"invoice {v.Reference}", v.Status.ToName())));
+                .OrderByDescending(v => v.CreatedAt).Take(PerType).Select(v => new { v.Id, v.Number, v.Reference, v.Status, v.IssueDate }).ToListAsync(ct);
+            hits.AddRange(invoices.Select(v => new SearchHitDto("invoice", v.Id, v.Number is null ? v.Reference ?? Draft(v.Id) : null, v.Number, null,
+                $"invoice {v.Reference ?? v.IssueDate.ToString("yyyy-MM-dd")}", v.Status.ToName())));
         }
         return new ItemsResult<SearchHitDto>(hits);
     }

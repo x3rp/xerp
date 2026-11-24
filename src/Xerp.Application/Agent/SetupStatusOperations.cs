@@ -49,8 +49,6 @@ public sealed class SetupStatusOperations(IXerpDb db)
                 profile?.RulesReviewedAt is { } at ? $"Reviewed at {at:O}." : "The business rules are still the shipped defaults, never reviewed with the user.",
                 "rule_profile_list, then rule_set_many or setup_mark_rules_reviewed (guide topic: business-rules)"),
             Item("users", users > 0, $"{users} user(s) who can sign in.", "Create a user with POST /users (guide topic: company-setup)"),
-            // Backups are monitored from spec R01 on; until then the answer is unknown and the item is not done.
-            Item("backups", false, "unknown: backup monitoring does not exist yet (spec R01).", "Ask whoever runs the server whether backups are running (guide topic: month-end)"),
         };
         var done = items.Count(i => i.Done);
         return new SetupStatusDto(done == items.Count, done, items.Count, items);

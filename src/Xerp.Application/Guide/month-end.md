@@ -9,7 +9,7 @@ What to check, and what to send to the accountant.
 3. Counts: a stock count posted for the period (`stock` playbook), with the differences explained.
 4. Payments: unpaid issued invoices (`invoice_list` with `paymentStatus`); record the bank statement with `invoice_payment_add`.
 5. Company data and rules unchanged by accident: `company_get`, `rule_change_list`.
-6. Backups: `setup_status` shows `backups`; it is `unknown` until monitoring exists, so ask whoever runs the server.
+6. Backups: ask whoever runs the server whether they are running; the system does not report it yet.
 
 ## For the accountant
 

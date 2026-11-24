@@ -1119,7 +1119,7 @@ public static class ToolCatalog
 
         XerpTool.For<NoArguments, SetupStatusDto>("setup_status", ToolKind.Read,
             "Shows what this company still needs before it is set up: a checklist computed from its data, each item `{ key, done, detail, nextStep }`, and overall `{ ready, done, total }`. "
-            + "`nextStep` names the tool to call and the `guide` topic that explains it. The backups item says `unknown` until backup monitoring exists. Call it first, and again after each setup step.",
+            + "`nextStep` names the tool to call and the `guide` topic that explains it. Call it first, and again after each setup step.",
             Input([]),
             (services, _, ct) => services.GetRequiredService<SetupStatusOperations>().GetAsync(ct)),
 

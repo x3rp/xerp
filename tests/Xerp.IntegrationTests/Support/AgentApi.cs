@@ -60,11 +60,9 @@ public static class AgentApi
     public static readonly string[] SetupKeys =
     [
         "companyProfile", "warehouses", "taxRates", "paymentMethods", "unitsOfMeasure", "articles", "customer", "supplier",
-        "rulesReviewed", "users", "backups",
+        "rulesReviewed", "users",
     ];
 
-    /// <summary>The item the spec lets be <c>unknown</c> until backups are monitored (R01); it is never required to be done.</summary>
-    public const string BackupsKey = "backups";
 
     // ---- HTTP ----
 

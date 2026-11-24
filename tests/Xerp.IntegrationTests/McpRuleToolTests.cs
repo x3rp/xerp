@@ -297,7 +297,7 @@ public class McpRuleToolTests(XerpFixture app)
             McpAssert.JsonEqual(before[o.Tool("create")], after[o.Tool("create")], $"The input schema of {o.Tool("create")} changed with the rule");
             McpAssert.JsonEqual(before[o.Tool("update")], after[o.Tool("update")], $"The input schema of {o.Tool("update")} changed with the rule");
         }
-        Assert.Equal(123, after.Count);
+        Assert.Equal(132, after.Count);
         await Rules.AssertBalancedAsync(s.Http);
     }
 }

@@ -13,7 +13,7 @@ What a new company needs before its first document: its own data, warehouses, pa
 
 ## Check
 
-Call `setup_status` after each step; the matching item turns `done`. `setup_status` also reports `backups`, which is `unknown` until backup monitoring exists.
+Call `setup_status` after each step; the matching item turns `done`.
 
 ## Credentials
 

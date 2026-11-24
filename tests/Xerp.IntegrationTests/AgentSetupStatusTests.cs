@@ -46,7 +46,7 @@ public class AgentSetupStatusTests(XerpFixture app)
         // nextStep names a tool and a guide topic (2.3).
         var tools = (await agent.Mcp.Client.ListToolsAsync()).Select(t => t.ProtocolTool.Name).ToHashSet();
         var topics = (await AgentApi.GuideAsync(agent.Http)).Items().Select(i => i.Str("topic")).ToHashSet();
-        foreach (var item in http.Items().Where(i => !i.Bool("done") && i.Str("key") != AgentApi.BackupsKey))
+        foreach (var item in http.Items().Where(i => !i.Bool("done")))
         {
             var next = item.Str("nextStep");
             Assert.True(tools.Any(next.Contains), $"{item.Str("key")}: nextStep '{next}' names no tool.");
@@ -55,7 +55,7 @@ public class AgentSetupStatusTests(XerpFixture app)
     }
 
     [Fact]
-    public async Task After_the_steps_every_item_but_the_backups_check_is_done_and_the_status_follows_each_step()
+    public async Task After_the_steps_every_item_is_done_and_the_status_follows_each_step()
     {
         await using var agent = await AgentApi.AgentAsync(app);
         var http = agent.Http;
@@ -102,7 +102,8 @@ public class AgentSetupStatusTests(XerpFixture app)
         var final = await StepAsync("rulesReviewed");
 
         AssertShape(final);
-        Assert.All(final.Items().Where(i => i.Str("key") != AgentApi.BackupsKey), i => Assert.True(i.Bool("done"), $"{i.Str("key")} is not done: {i}"));
+        Assert.True(final.Bool("ready"));
+        Assert.All(final.Items(), i => Assert.True(i.Bool("done"), $"{i.Str("key")} is not done: {i}"));
         McpAssert.JsonEqual(final, await agent.Mcp.OkAsync("setup_status"), "setup_status differs from GET /setup-status");
     }
 

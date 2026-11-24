@@ -247,8 +247,8 @@ public class AgentRuleToolsTests(XerpFixture app)
     {
         await using var agent = await AgentApi.AgentAsync(app);
         var s = await Orders.SetupAsync(app, agent.Tenant);
-        await Stock.CreateAsync(s.Http, Stock.Draft("receipt", s.W1, (s.A, 1)));
-        await Stock.CreateAsync(s.Http, Stock.Draft("issue", s.W1, (s.A, 1)));
+        await Stock.CreateAsync(s.Http, Stock.Draft("receipt", s.W1, (s.A, 1)).Dated(DocRules.Today));
+        await Stock.CreateAsync(s.Http, Stock.Draft("issue", s.W1, (s.A, 1)).Dated(DocRules.Today));
         await Stock.CreateAsync(s.Http, Stock.Draft("receipt", s.W1, (s.A, 1)).With("reference", "DN-1").Dated(DocRules.Past));
         await Stock.CreateAsync(s.Http, Stock.Draft("receipt", s.W1, (s.A, 1)).With("reference", "DN-2").Dated(DocRules.Today));
 

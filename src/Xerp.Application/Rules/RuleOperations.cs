@@ -176,8 +176,7 @@ public sealed class RuleOperations(IXerpDb db, ITenantContext context, ICurrentT
     /// <summary>
     /// Several rules in one call, all or none. Every item is checked before anything is written: an unknown key, a value that
     /// is not the JSON boolean true or false, a key twice - each is reported under <c>changes[i].key</c> / <c>changes[i].value</c>.
-    /// A change writes one history row with the common <c>reason</c>; an item that leaves the rule as it is writes nothing, and one
-    /// that gives a rule the default's value removes the tenant's own value (a reset). The company's <c>rulesReviewedAt</c> is set.
+    /// A change writes one history row (action <c>set</c>, as <see cref="SetAsync(string?, SetRuleInput, CancellationToken)"/>) with the common <c>reason</c>; an item that leaves the rule's value as it is writes nothing. The company's <c>rulesReviewedAt</c> is set.
     /// Answers the rules that changed.
     /// </summary>
     public async Task<Result<ItemsResult<RuleDto>>> SetManyAsync(SetManyRulesInput input, CancellationToken cancellationToken = default)
@@ -203,23 +202,16 @@ public sealed class RuleOperations(IXerpDb db, ITenantContext context, ICurrentT
             foreach (var (rule, value) in changes)
             {
                 stored.TryGetValue(rule.Key, out var own);
-                var current = own?.Value ?? rule.Default;
-                if (value == current && (own is null || value != rule.Default))
+                // As rule_set: a value the tenant already has changes nothing; a value that differs is the tenant's own (action set),
+                // also when it is the default's. Only a rule the tenant never set, given the value it already has, stays unset -
+                // so that applying a profile (every key of "defaults") does not turn every rule into the tenant's own.
+                if (own is null ? value == rule.Default : own.Value == value)
                     continue;
-                if (value == rule.Default)
-                {
-                    // Back to the default: the tenant's own value goes, as in a reset.
-                    db.RuleChanges.Add(RuleChange.Record(rule, RuleChangeAction.Reset, oldValue: current, newValue: value, now, actor, reason));
-                    db.RuleValues.Remove(own!);
-                }
+                db.RuleChanges.Add(RuleChange.Record(rule, RuleChangeAction.Set, oldValue: own?.Value ?? rule.Default, newValue: value, now, actor, reason));
+                if (own is null)
+                    db.RuleValues.Add(RuleValue.Set(rule, value, now, actor));
                 else
-                {
-                    db.RuleChanges.Add(RuleChange.Record(rule, RuleChangeAction.Set, oldValue: current, newValue: value, now, actor, reason));
-                    if (own is null)
-                        db.RuleValues.Add(RuleValue.Set(rule, value, now, actor));
-                    else
-                        own.Change(value, now, actor);
-                }
+                    own.Change(value, now, actor);
                 changed.Add(rule);
             }
             var profile = await db.CompanyProfiles.SingleOrDefaultAsync(ct);
