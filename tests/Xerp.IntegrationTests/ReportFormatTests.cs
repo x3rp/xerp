@@ -56,7 +56,7 @@ public class ReportFormatTests(XerpFixture app)
         var text = new UTF8Encoding(false, true).GetString(bytes, 3, bytes.Length - 3);   // strict: invalid UTF-8 throws
         var header = text.Split('\n')[0].TrimEnd('\r');
         Assert.Equal(ReportApi.Columns["sales-by-customer"].Length, header.Split(';').Length);
-        Assert.DoesNotContain("﻿", text);   // exactly one BOM
+        Assert.DoesNotContain("\uFEFF", text, StringComparison.Ordinal);   // exactly one BOM
     }
 
     [Fact]
