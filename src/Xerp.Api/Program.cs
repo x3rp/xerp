@@ -68,6 +68,7 @@ builder.Services.AddScoped<GuideOperations>();
 builder.Services.AddScoped<SetupStatusOperations>();
 builder.Services.AddScoped<SearchOperations>();
 builder.Services.AddScoped<RuleProfileOperations>();
+builder.Services.AddScoped<Xerp.Application.Reports.ReportOperations>();
 builder.Services.AddXerpMcpServer();
 
 var app = builder.Build();
@@ -122,6 +123,7 @@ v1.MapProductionEndpoints();
 v1.MapUserEndpoints();
 v1.MapInvoiceEndpoints();
 v1.MapAgentEndpoints();
+v1.MapReportEndpoints();
 
 // One operation = one HTTP endpoint + one MCP tool; both call the same Application operations.
 app.MapMcp(ApiV1Middleware.McpPath);

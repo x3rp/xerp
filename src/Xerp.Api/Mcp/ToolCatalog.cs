@@ -1181,6 +1181,33 @@ public static class ToolCatalog
             ]),
             (services, input, ct) => services.GetRequiredService<SearchOperations>().SearchAsync(input, "text", ct)),
 
+        // ---- reports (spec RP01)
+        XerpTool.For<NoArguments, ItemsResult<Xerp.Application.Reports.ReportDefinitionDto>>("report_list", ToolKind.Read,
+            "Lists the reports of this system: for each its `key`, `name`, a `description` of the question it answers, its `parameters` (name, type, required, default, allowed values) and its `columns` (key, label, type: "
+            + "date, text, number, money, quantity or percent). Pick the report that answers the user's question, then run it with `report_run`. Reports are read-only and cover this company only. "
+            + "Examples: `sales-by-period`, `unpaid-invoices`, `stock-on-hand`, `vat-output`.",
+            Input([]),
+            (services, _, ct) => Task.FromResult(services.GetRequiredService<Xerp.Application.Reports.ReportOperations>().List())),
+
+        XerpTool.For<Xerp.Application.Reports.RunReportInput, object>("report_run", ToolKind.Read,
+            "Runs a report and returns `{ report, parameters, generatedAt, columns, rows, totals, rowCount, truncated, notes }`: `rows` are objects keyed by the column keys, `totals` sums the summable columns (null when there are no rows), "
+            + "`parameters` are the values used including defaults. At most 5000 rows; then `truncated` is true and `notes` says which parameter narrows it. Most period reports default to the current month: pass `from` and `to` (YYYY-MM-DD, inclusive) "
+            + "for another period, and `groupBy` (day, week, month, quarter, year) where the report groups time. With `format` = `csv` the answer is `{ report, format, csv, rowCount, truncated }`: the same rows as CSV text with `;` as separator and a decimal point "
+            + "(over HTTP the CSV file has a UTF-8 BOM so that Excel opens it). You render, chart and explain; the server only returns numbers. "
+            + "`VALIDATION_FAILED` with `errors` keyed by parameter name (`from`, `groupBy`, `days`, ...). `NOT_FOUND`: no such report (see `report_list`).",
+            Input(["key"],
+            [
+                ("key", Text("The report's key from `report_list`, for example `sales-by-period`.")),
+                ("parameters", new System.Text.Json.Nodes.JsonObject
+                {
+                    ["type"] = "object",
+                    ["description"] = "The report's parameters by name, for example `{ \"from\": \"2026-10-01\", \"to\": \"2026-10-31\", \"groupBy\": \"week\" }`. Omit for the defaults. Only the parameters listed for the report are accepted.",
+                    ["additionalProperties"] = new System.Text.Json.Nodes.JsonObject { ["type"] = new System.Text.Json.Nodes.JsonArray("string", "number") },
+                }),
+                ("format", Text("`json` (default) or `csv`.", "json", "csv")),
+            ]),
+            (services, input, ct) => services.GetRequiredService<Xerp.Application.Reports.ReportOperations>().RunForToolAsync(input, ct)) with { OutputSchema = ObjectOutput },
+
         // ---- API keys (creating a key is HTTP only: a secret never travels through a tool result, ADR-0010)
         XerpTool.For<ListApiKeysInput, PagedResult<ApiKeyDto>>("api_key_list", ToolKind.Read,
             "Lists the tenant's API keys (the actors that can act for it) in order of creation, with paging. "

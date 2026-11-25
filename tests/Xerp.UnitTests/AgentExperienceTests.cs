@@ -42,9 +42,8 @@ public class AgentExperienceTests
 
         // A backticked snake_case word that starts like a tool but is none: a typo or a tool that does not exist (yet).
         var prefixes = tools.Where(t => t.Contains((char)95)).Select(t => t[..t.IndexOf((char)95)]).ToHashSet();
-        var announced = new HashSet<string> { "report_list" }; // spec RP01: named in the guide before it exists
         var unknown = Regex.Matches(text, @"`([a-z]+(?:_[a-z]+)+)[`( ]").Select(m => m.Groups[1].Value)
-            .Where(w => prefixes.Contains(w[..w.IndexOf('_')]) && !tools.Contains(w) && !announced.Contains(w)).Distinct().Order().ToArray();
+            .Where(w => prefixes.Contains(w[..w.IndexOf('_')]) && !tools.Contains(w)).Distinct().Order().ToArray();
         Assert.True(unknown.Length == 0, $"Playbooks mention tools that do not exist: {string.Join(", ", unknown)}");
     }
 

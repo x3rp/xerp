@@ -28,7 +28,7 @@ public static class McpServerSetup
         + "Start with three tools:\n"
         + "- `setup_status`: what this company still needs (company data, warehouses, tax rates, articles, partners, rules...), each open item with the tool to call.\n"
         + "- `guide`: playbooks for tasks, with the tools in order and the usual errors. Call it without a topic for the list; read `getting-started` first.\n"
-        + "- `report_list`: the report catalogue (arrives with spec RP01; until then see the `reports` playbook).\n"
+        + "- `report_list`: the report catalogue (sales, VAT, unpaid invoices, stock, orders, production); run one with `report_run`.\n"
         + "\n"
         + "Workflow: setup -> masters (articles, partners) -> purchasing -> stock -> sales -> invoicing -> payments -> reports. "
         + "Find a record by a name, code, number or barcode with `search`; use the `id` it returns. Records are referenced by `id` (a UUID); a `code` is a label for lookup and can change.\n"
